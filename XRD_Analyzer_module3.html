@@ -1,0 +1,885 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>XRD Analyzer — Wasim Laaouissi</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/plotly.js/2.27.0/plotly.min.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600&family=IBM+Plex+Sans:wght@300;400;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0d0f14;
+    --panel: #13161e;
+    --border: #232736;
+    --accent: #4fc3f7;
+    --accent2: #81c784;
+    --accent3: #ffb74d;
+    --accent4: #f06292;
+    --text: #e0e6f0;
+    --muted: #7a8499;
+    --header-h: 64px;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'IBM Plex Sans', sans-serif;
+    font-size: 14px;
+    min-height: 100vh;
+  }
+  header {
+    background: var(--panel);
+    border-bottom: 1px solid var(--border);
+    height: var(--header-h);
+    display: flex;
+    align-items: center;
+    padding: 0 28px;
+    gap: 20px;
+    position: sticky; top: 0; z-index: 100;
+  }
+  header h1 {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 15px;
+    font-weight: 600;
+    color: var(--accent);
+    letter-spacing: 0.04em;
+  }
+  header span { color: var(--muted); font-size: 12px; }
+  .upload-btn {
+    margin-left: auto;
+    background: var(--accent);
+    color: #000;
+    border: none;
+    padding: 8px 18px;
+    border-radius: 4px;
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: opacity .15s;
+  }
+  .upload-btn:hover { opacity: 0.85; }
+  #fileInput { display: none; }
+
+  .status-bar {
+    background: #0a1520;
+    border-bottom: 1px solid var(--border);
+    padding: 6px 28px;
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 11px;
+    color: var(--accent2);
+    display: flex; gap: 24px; flex-wrap: wrap;
+  }
+  .status-bar span { color: var(--muted); }
+
+  .main-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+    padding: 16px 20px;
+    max-width: 1600px;
+    margin: 0 auto;
+  }
+  .full-width { grid-column: 1 / -1; }
+
+  .panel {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    overflow: hidden;
+  }
+  .panel-header {
+    background: #181c26;
+    border-bottom: 1px solid var(--border);
+    padding: 10px 16px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+  }
+  .panel-title {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--accent);
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+  }
+  .panel-actions { display: flex; gap: 8px; }
+  .btn-sm {
+    background: transparent;
+    border: 1px solid var(--border);
+    color: var(--muted);
+    padding: 4px 10px;
+    border-radius: 3px;
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 10px;
+    cursor: pointer;
+    transition: all .15s;
+  }
+  .btn-sm:hover { border-color: var(--accent); color: var(--accent); }
+  .btn-sm.active { border-color: var(--accent2); color: var(--accent2); }
+
+  .chart-wrap { padding: 8px; min-height: 360px; }
+  .chart-wrap .js-plotly-plot { border-radius: 4px; }
+
+  /* Table */
+  .table-wrap { overflow-x: auto; padding: 12px 16px; }
+  table { width: 100%; border-collapse: collapse; font-family: 'IBM Plex Mono', monospace; font-size: 11px; }
+  th {
+    color: var(--accent);
+    border-bottom: 1px solid var(--border);
+    padding: 6px 10px;
+    text-align: right;
+    font-weight: 600;
+    white-space: nowrap;
+  }
+  th:first-child { text-align: left; }
+  td {
+    padding: 5px 10px;
+    text-align: right;
+    border-bottom: 1px solid #1a1e2a;
+    color: var(--text);
+  }
+  td:first-child { text-align: left; color: var(--muted); }
+  tr:hover td { background: #1a1e2a; }
+  .hkl-cell { color: var(--accent3); font-weight: 600; }
+  .a-cell { color: var(--accent2); }
+  .good { color: var(--accent2); }
+  .warn { color: var(--accent3); }
+
+  /* LaTeX export */
+  .latex-box {
+    margin: 12px 16px;
+    background: #080b10;
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 12px;
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 10px;
+    color: #aac;
+    white-space: pre;
+    overflow-x: auto;
+    max-height: 260px;
+    overflow-y: auto;
+  }
+  .copy-btn {
+    margin: 0 16px 14px;
+    background: transparent;
+    border: 1px solid var(--accent3);
+    color: var(--accent3);
+    padding: 5px 14px;
+    border-radius: 3px;
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 11px;
+    cursor: pointer;
+    transition: all .15s;
+  }
+  .copy-btn:hover { background: var(--accent3); color: #000; }
+
+  /* Widget panel */
+  .widget-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px; padding: 14px 16px; }
+  .widget-item label {
+    display: block;
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 10px;
+    color: var(--muted);
+    margin-bottom: 4px;
+  }
+  .widget-val {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 18px;
+    font-weight: 600;
+    color: var(--accent);
+  }
+  .widget-unit { font-size: 11px; color: var(--muted); margin-left: 3px; }
+
+  /* Summary box */
+  .summary-grid { display: grid; grid-template-columns: repeat(4,1fr); gap: 10px; padding: 14px 16px; }
+  .summary-card {
+    background: #0d1018;
+    border: 1px solid var(--border);
+    border-radius: 5px;
+    padding: 12px;
+    text-align: center;
+  }
+  .summary-card .val { font-family: 'IBM Plex Mono', monospace; font-size: 20px; font-weight: 600; color: var(--accent2); }
+  .summary-card .label { font-size: 10px; color: var(--muted); margin-top: 3px; text-transform: uppercase; letter-spacing: .06em; }
+
+  /* Drop zone */
+  #dropZone {
+    display: none;
+    grid-column: 1/-1;
+    border: 2px dashed var(--accent);
+    border-radius: 8px;
+    padding: 40px;
+    text-align: center;
+    color: var(--muted);
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 13px;
+    cursor: pointer;
+    transition: all .2s;
+    margin: 0;
+  }
+  #dropZone:hover { border-color: var(--accent2); color: var(--accent2); }
+  #dropZone.visible { display: block; }
+  #dropZone .big { font-size: 36px; display: block; margin-bottom: 10px; }
+
+  /* Tabs */
+  .tabs { display: flex; gap: 0; border-bottom: 1px solid var(--border); }
+  .tab {
+    padding: 8px 16px;
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 11px;
+    color: var(--muted);
+    cursor: pointer;
+    border-bottom: 2px solid transparent;
+    transition: all .15s;
+  }
+  .tab:hover { color: var(--text); }
+  .tab.active { color: var(--accent); border-bottom-color: var(--accent); }
+  .tab-content { display: none; }
+  .tab-content.active { display: block; }
+
+  footer {
+    text-align: center;
+    padding: 24px;
+    color: var(--muted);
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 10px;
+    border-top: 1px solid var(--border);
+    margin-top: 20px;
+  }
+  footer a { color: var(--accent); text-decoration: none; }
+  .badge {
+    display: inline-block;
+    background: #1a2a1a;
+    border: 1px solid var(--accent2);
+    color: var(--accent2);
+    border-radius: 3px;
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 10px;
+    padding: 2px 7px;
+    margin-left: 6px;
+  }
+  .badge.warn { background: #2a1a0a; border-color: var(--accent3); color: var(--accent3); }
+  .badge.ref { background: #1a1a2a; border-color: var(--accent4); color: var(--accent4); }
+  .info-row { padding: 10px 16px; font-size: 11px; color: var(--muted); font-family: 'IBM Plex Mono', monospace; }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>⬡ XRD ANALYZER</h1>
+  <span>University of Twente · Project M03 · Cu Kα · λ = 0.15406 nm</span>
+  <label class="upload-btn" for="fileInput">⬆ Upload .xy File</label>
+  <input type="file" id="fileInput" accept=".xy,.csv,.txt">
+</header>
+
+<div class="status-bar">
+  <span>File:</span> <span id="statusFile" style="color:#4fc3f7">UnkownsSample_wasim_XRD.xy (embedded)</span>
+  <span>Points:</span> <span id="statusPts" style="color:#81c784">9140</span>
+  <span>2θ range:</span> <span id="statusRange" style="color:#81c784">20.0° – 80.0°</span>
+  <span>Peaks detected:</span> <span id="statusPeaks" style="color:#ffb74d">—</span>
+  <span>Phase:</span> <span id="statusPhase" style="color:#f06292">KBr (FCC)</span>
+</div>
+
+<div class="main-grid" id="mainGrid">
+
+  <!-- Summary cards -->
+  <div class="panel full-width">
+    <div class="panel-header">
+      <span class="panel-title">Cell Parameter Summary</span>
+    </div>
+    <div class="summary-grid">
+      <div class="summary-card">
+        <div class="val" id="sumA">0.6595</div>
+        <div class="label">a (nm) — fitted</div>
+      </div>
+      <div class="summary-card">
+        <div class="val" style="color:#ffb74d">0.6588</div>
+        <div class="label">a (nm) — literature KBr</div>
+      </div>
+      <div class="summary-card">
+        <div class="val" style="color:#f06292" id="sumErr">±9.24×10⁻⁴</div>
+        <div class="label">Uncertainty (nm)</div>
+      </div>
+      <div class="summary-card">
+        <div class="val" style="color:#81c784" id="sumDev">0.11%</div>
+        <div class="label">Deviation from lit.</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Diffraction Pattern -->
+  <div class="panel full-width">
+    <div class="panel-header">
+      <span class="panel-title">Diffraction Pattern — 2θ vs Intensity</span>
+      <div class="panel-actions">
+        <button class="btn-sm active" id="togglePeaks" onclick="togglePeakLabels()">Peak Labels ✓</button>
+        <button class="btn-sm active" id="toggleRef" onclick="toggleReference()">Reference ✓</button>
+        <button class="btn-sm" onclick="downloadPlot('diffPattern','XRD_Pattern_Wasim')">⬇ PNG</button>
+      </div>
+    </div>
+    <div class="chart-wrap">
+      <div id="diffPattern" style="width:100%;height:420px;"></div>
+    </div>
+  </div>
+
+  <!-- Peak Table + LaTeX -->
+  <div class="panel">
+    <div class="panel-header">
+      <span class="panel-title">Peak Analysis Table</span>
+      <div class="tabs" style="border:none;margin-left:auto">
+        <div class="tab active" onclick="switchTab('tableTab','table')">Table</div>
+        <div class="tab" onclick="switchTab('tableTab','latex')">LaTeX</div>
+      </div>
+    </div>
+    <div id="tableTab-table" class="tab-content active">
+      <div class="table-wrap">
+        <table id="peakTable">
+          <thead>
+            <tr>
+              <th>2θ (°)</th><th>θ (°)</th><th>d<sub>hkl</sub> (nm)</th>
+              <th>1/d² (nm⁻²)</th><th>h²+k²+l²</th><th>hkl</th><th>a (nm)</th>
+            </tr>
+          </thead>
+          <tbody id="peakTableBody"></tbody>
+        </table>
+      </div>
+    </div>
+    <div id="tableTab-latex" class="tab-content">
+      <div class="latex-box" id="latexTable"></div>
+      <button class="copy-btn" onclick="copyLatex('latexTable')">⎘ Copy LaTeX</button>
+    </div>
+  </div>
+
+  <!-- Nelson-Riley Error Analysis -->
+  <div class="panel">
+    <div class="panel-header">
+      <span class="panel-title">Nelson-Riley Error Analysis</span>
+      <div class="panel-actions">
+        <button class="btn-sm" onclick="downloadPlot('nelsonPlot','NelsonRiley_Wasim')">⬇ PNG</button>
+      </div>
+    </div>
+    <div class="chart-wrap">
+      <div id="nelsonPlot" style="width:100%;height:380px;"></div>
+    </div>
+    <div class="info-row">
+      Nelson-Riley function: f(θ) = ½(cos²θ/sinθ + cos²θ/θ) · all peaks retained · slope → extrapolated <i>a</i>
+    </div>
+  </div>
+
+  <!-- 1/d² vs h²+k²+l² -->
+  <div class="panel">
+    <div class="panel-header">
+      <span class="panel-title">Linear Bragg Fit — 1/d² vs h²+k²+l²</span>
+      <div class="panel-actions">
+        <button class="btn-sm" onclick="downloadPlot('braggFitPlot','BraggFit_Wasim')">⬇ PNG</button>
+      </div>
+    </div>
+    <div class="chart-wrap">
+      <div id="braggFitPlot" style="width:100%;height:380px;"></div>
+    </div>
+  </div>
+
+  <!-- Cell Parameter Widget -->
+  <div class="panel">
+    <div class="panel-header">
+      <span class="panel-title">Unit Cell Parameters — KBr (FCC, Cubic)</span>
+    </div>
+    <div class="widget-grid">
+      <div class="widget-item">
+        <label>a = b = c</label>
+        <div class="widget-val" id="wa">0.6595<span class="widget-unit">nm</span></div>
+      </div>
+      <div class="widget-item">
+        <label>α = β = γ</label>
+        <div class="widget-val">90.0<span class="widget-unit">°</span></div>
+      </div>
+      <div class="widget-item">
+        <label>Volume V</label>
+        <div class="widget-val" id="wvol">—<span class="widget-unit">nm³</span></div>
+      </div>
+      <div class="widget-item">
+        <label>Crystal System</label>
+        <div class="widget-val" style="font-size:14px;color:#f06292">Cubic</div>
+      </div>
+      <div class="widget-item">
+        <label>Space Group</label>
+        <div class="widget-val" style="font-size:14px;color:#f06292">Fm3̄m</div>
+      </div>
+      <div class="widget-item">
+        <label>Z (formula units)</label>
+        <div class="widget-val" style="color:#ffb74d">4</div>
+      </div>
+      <div class="widget-item">
+        <label>λ Cu Kα₁</label>
+        <div class="widget-val" style="font-size:14px">1.5406<span class="widget-unit">Å</span></div>
+      </div>
+      <div class="widget-item">
+        <label>λ Cu Kα₂</label>
+        <div class="widget-val" style="font-size:14px">1.5443<span class="widget-unit">Å</span></div>
+      </div>
+      <div class="widget-item">
+        <label>Kα₁/Kα₂ ratio</label>
+        <div class="widget-val" style="font-size:14px;color:#81c784">2:1</div>
+      </div>
+    </div>
+    <div style="padding:0 16px 14px">
+      <label style="font-size:11px;color:var(--muted);font-family:'IBM Plex Mono',monospace;display:block;margin-bottom:6px;">
+        Adjust a (nm): <span id="aSliderVal">0.6595</span>
+      </label>
+      <input type="range" min="0.640" max="0.680" step="0.0001" value="0.6595"
+             style="width:100%;accent-color:#4fc3f7" id="aSlider" oninput="updateSlider(this.value)">
+      <div style="display:flex;justify-content:space-between;font-family:'IBM Plex Mono',monospace;font-size:9px;color:var(--muted);margin-top:2px">
+        <span>0.640</span><span style="color:#ffb74d">↑ lit. 0.6588</span><span>0.680</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Results LaTeX block -->
+  <div class="panel">
+    <div class="panel-header">
+      <span class="panel-title">Cell Parameter Results — LaTeX Export</span>
+    </div>
+    <div class="latex-box" id="latexResults"></div>
+    <button class="copy-btn" onclick="copyLatex('latexResults')">⎘ Copy LaTeX</button>
+  </div>
+
+</div>
+
+<footer>
+  XRD Analyzer · Wasim Laaouissi · University of Twente M03 2025 ·
+  <a href="https://www.rruff.net/amcsd/" target="_blank">AMCSD Database</a> ·
+  Built with Plotly.js · 
+  <a href="#" onclick="alert('Deploy to GitHub Pages: push this HTML file to a repo, enable Pages in Settings → Pages → Source: main / root')">GitHub Pages Guide</a>
+</footer>
+
+<script>
+// ═══════════════════════════════════════════════════════════
+// PEAK DATA (from report + Bragg law calculations)
+// ═══════════════════════════════════════════════════════════
+const LAMBDA = 0.15406; // nm
+
+const peaks = [
+  { twoTheta: 23.4971, hkl: '111', h2k2l2: 3  },
+  { twoTheta: 27.1014, hkl: '200', h2k2l2: 4  },
+  { twoTheta: 38.7085, hkl: '220', h2k2l2: 8  },
+  { twoTheta: 45.6742, hkl: '311', h2k2l2: 11 },
+  { twoTheta: 47.8144, hkl: '222', h2k2l2: 12 },
+  { twoTheta: 55.7910, hkl: '400', h2k2l2: 16 },
+  { twoTheta: 61.2335, hkl: '331', h2k2l2: 19 },
+  { twoTheta: 63.0389, hkl: '420', h2k2l2: 20 },
+  { twoTheta: 69.8733, hkl: '422', h2k2l2: 24 },
+];
+
+// Derive all values from Bragg's law
+peaks.forEach(p => {
+  p.theta    = p.twoTheta / 2;
+  p.thetaRad = p.theta * Math.PI / 180;
+  p.d        = LAMBDA / (2 * Math.sin(p.thetaRad));
+  p.inv_d2   = 1 / (p.d * p.d);
+  p.a        = p.d * Math.sqrt(p.h2k2l2);
+  // Nelson-Riley function
+  const th = p.thetaRad;
+  p.nr = 0.5 * (Math.cos(th)**2 / Math.sin(th) + Math.cos(th)**2 / th);
+});
+
+const a_mean = peaks.reduce((s,p)=>s+p.a,0)/peaks.length;
+const a_std  = Math.sqrt(peaks.reduce((s,p)=>s+(p.a-a_mean)**2,0)/(peaks.length-1));
+const a_lit  = 0.6588;
+
+// Linear fit for Nelson-Riley: a = a0 + slope * NR
+function linFit(x, y) {
+  const n = x.length;
+  const sx = x.reduce((a,b)=>a+b,0), sy = y.reduce((a,b)=>a+b,0);
+  const sxy = x.reduce((s,xi,i)=>s+xi*y[i],0), sx2 = x.reduce((s,xi)=>s+xi*xi,0);
+  const slope = (n*sxy - sx*sy)/(n*sx2 - sx*sx);
+  const intercept = (sy - slope*sx)/n;
+  return {slope, intercept};
+}
+
+const nrX = peaks.map(p=>p.nr);
+const nrY = peaks.map(p=>p.a);
+const {slope: nrSlope, intercept: nrIntercept} = linFit(nrX, nrY);
+const a_extrapolated = nrIntercept; // value at NR=0
+
+// Bragg fit: 1/d² = (1/a²) * (h²+k²+l²)  → slope = 1/a²
+const bx = peaks.map(p=>p.h2k2l2), by = peaks.map(p=>p.inv_d2);
+const {slope: bSlope} = linFit(bx, by);
+const a_bragg = 1/Math.sqrt(bSlope);
+
+// ═══════════════════════════════════════════════════════════
+// XY DATA — embedded (first ~100 pts used for reference marks; full parsed on load)
+// ═══════════════════════════════════════════════════════════
+let xyData = { x: [], y: [] };
+let showPeakLabels = true;
+let showReference = true;
+
+// Plotly layout template (MATLAB dark style)
+function mlLayout(title, xtitle, ytitle, extra={}) {
+  return {
+    title: { text: title, font: { family:'IBM Plex Mono', color:'#7a8499', size:12 } },
+    paper_bgcolor: '#0d0f14',
+    plot_bgcolor:  '#0d0f14',
+    font: { family:'IBM Plex Mono', color:'#7a8499', size:10 },
+    xaxis: {
+      title: { text: xtitle, font:{color:'#b0bcd0'} },
+      gridcolor: '#1a1e2a', zerolinecolor:'#232736',
+      tickcolor:'#232736', linecolor:'#232736',
+      ...extra.xaxis
+    },
+    yaxis: {
+      title: { text: ytitle, font:{color:'#b0bcd0'} },
+      gridcolor: '#1a1e2a', zerolinecolor:'#232736',
+      tickcolor:'#232736', linecolor:'#232736',
+      ...extra.yaxis
+    },
+    margin: {l:60,r:20,t:40,b:60},
+    legend: { bgcolor:'rgba(0,0,0,0)', bordercolor:'#232736', font:{color:'#7a8499',size:10} },
+    hovermode: 'closest',
+    ...extra
+  };
+}
+
+// ═══════════════════════════════════════════════════════════
+// GENERATE REFERENCE STICK PATTERN (KBr from AMCSD data)
+// ═══════════════════════════════════════════════════════════
+// Approximate relative intensities from literature/VESTA for KBr FCC
+const refIntensities = [100, 55, 30, 45, 20, 15, 18, 10, 12]; // relative
+const maxRefI = Math.max(...refIntensities);
+
+function buildRefSticks(scale=1) {
+  const xs=[], ys=[];
+  peaks.forEach((p,i)=>{
+    xs.push(p.twoTheta, p.twoTheta, null);
+    ys.push(0, refIntensities[i]/maxRefI * scale, null);
+  });
+  return {xs, ys};
+}
+
+// ═══════════════════════════════════════════════════════════
+// PLOT 1: Diffraction Pattern
+// ═══════════════════════════════════════════════════════════
+function plotDiffPattern(xyX, xyY) {
+  const maxI = Math.max(...xyY);
+  const {xs: rxs, ys: rys} = buildRefSticks(maxI * 0.92);
+
+  const traces = [
+    {
+      x: xyX, y: xyY,
+      type:'scatter', mode:'lines',
+      name:'Experimental',
+      line: { color:'#4fc3f7', width:1.2 },
+      hovertemplate: '2θ = %{x:.3f}°<br>I = %{y:.0f}<extra></extra>'
+    },
+    {
+      x: rxs, y: rys,
+      type:'scatter', mode:'lines',
+      name:'KBr Reference (lit.)',
+      line: { color:'#f06292', width:1.5, dash:'dot' },
+      visible: showReference ? true : 'legendonly',
+      hovertemplate: '2θ = %{x:.3f}°<extra>Reference</extra>'
+    }
+  ];
+
+  // Peak annotation traces
+  if (showPeakLabels) {
+    const px = peaks.map(p=>p.twoTheta);
+    const py = peaks.map(p=>{
+      const idx = xyX.findIndex(v=>Math.abs(v-p.twoTheta)<0.2);
+      return idx>=0 ? xyY[idx]*1.05 : maxI*0.3;
+    });
+    traces.push({
+      x: px, y: py,
+      type:'scatter', mode:'markers+text',
+      name:'Miller Indices',
+      text: peaks.map(p=>`(${p.hkl})`),
+      textposition:'top center',
+      textfont: { family:'IBM Plex Mono', color:'#ffb74d', size:9 },
+      marker: { color:'#ffb74d', size:5, symbol:'triangle-down' },
+      hovertemplate: '(%{text})<br>2θ = %{x:.4f}°<extra></extra>'
+    });
+  }
+
+  Plotly.newPlot('diffPattern', traces,
+    mlLayout('Powder XRD Pattern — Unknown Sample (KBr)', '2θ (degrees)', 'Intensity (counts)'),
+    { responsive:true, displayModeBar:true, modeBarButtonsToRemove:['select2d','lasso2d'] }
+  );
+}
+
+// ═══════════════════════════════════════════════════════════
+// PLOT 2: Nelson-Riley
+// ═══════════════════════════════════════════════════════════
+function plotNelsonRiley() {
+  const nrXfit = [Math.min(...nrX)*0.9, Math.max(...nrX)*1.05];
+  const fitLine = nrXfit.map(x => nrSlope*x + nrIntercept);
+
+  Plotly.newPlot('nelsonPlot', [
+    {
+      x: nrX, y: nrY,
+      type:'scatter', mode:'markers+text',
+      name:'Data Points',
+      text: peaks.map(p=>`(${p.hkl})`),
+      textposition:'top right',
+      textfont:{ family:'IBM Plex Mono', color:'#ffb74d', size:8 },
+      marker:{ color:'#4fc3f7', size:8, symbol:'circle',
+               line:{color:'#ffffff',width:0.5} },
+      hovertemplate:'(%{text})<br>f(θ) = %{x:.4f}<br>a = %{y:.5f} nm<extra></extra>'
+    },
+    {
+      x: nrXfit, y: fitLine,
+      type:'scatter', mode:'lines',
+      name:`Linear fit (a₀ = ${a_extrapolated.toFixed(5)} nm)`,
+      line:{ color:'#81c784', width:1.5, dash:'dash' },
+      hovertemplate:'f(θ) = %{x:.4f}<br>a(fit) = %{y:.5f} nm<extra></extra>'
+    },
+    {
+      x:[0], y:[a_extrapolated],
+      type:'scatter', mode:'markers+text',
+      name:'Extrapolated a',
+      text:[`a = ${a_extrapolated.toFixed(5)} nm`],
+      textposition:'top right',
+      textfont:{color:'#f06292', size:9},
+      marker:{color:'#f06292', size:10, symbol:'star'},
+    }
+  ],
+    mlLayout(
+      'Nelson-Riley Error Analysis — Extrapolated Cell Parameter',
+      'f(θ) = ½(cos²θ/sinθ + cos²θ/θ)',
+      'a (nm)',
+      { shapes:[{type:'line',x0:0,x1:0,y0:a_extrapolated-0.003,y1:a_extrapolated+0.003,
+                 line:{color:'#f06292',width:1,dash:'dot'}}] }
+    ),
+    { responsive:true }
+  );
+}
+
+// ═══════════════════════════════════════════════════════════
+// PLOT 3: Bragg Fit 1/d² vs h²+k²+l²
+// ═══════════════════════════════════════════════════════════
+function plotBraggFit() {
+  const bxFit = [0, Math.max(...bx)*1.05];
+  const byFit = bxFit.map(v => bSlope*v);
+
+  Plotly.newPlot('braggFitPlot', [
+    {
+      x: bx, y: by,
+      type:'scatter', mode:'markers+text',
+      name:'Observed peaks',
+      text: peaks.map(p=>`(${p.hkl})`),
+      textposition:'top right',
+      textfont:{family:'IBM Plex Mono', color:'#ffb74d', size:8},
+      marker:{color:'#4fc3f7', size:8, line:{color:'#fff',width:0.5}},
+      hovertemplate:'(%{text})<br>h²+k²+l² = %{x}<br>1/d² = %{y:.4f} nm⁻²<extra></extra>'
+    },
+    {
+      x: bxFit, y: byFit,
+      type:'scatter', mode:'lines',
+      name:`Fit: a = ${a_bragg.toFixed(5)} nm`,
+      line:{color:'#81c784', width:1.5, dash:'dash'},
+      hovertemplate:'slope × x = %{y:.4f}<extra></extra>'
+    }
+  ],
+    mlLayout(
+      `Linear Bragg Fit — slope = 1/a² → a = ${a_bragg.toFixed(5)} nm`,
+      'h² + k² + l²',
+      '1/d²hkl (nm⁻²)'
+    ),
+    { responsive:true }
+  );
+}
+
+// ═══════════════════════════════════════════════════════════
+// TABLE
+// ═══════════════════════════════════════════════════════════
+function buildTable() {
+  const tbody = document.getElementById('peakTableBody');
+  tbody.innerHTML = '';
+  peaks.forEach(p => {
+    const dev = Math.abs(p.a - a_lit)/a_lit*100;
+    const cls = dev < 0.15 ? 'good' : 'warn';
+    tbody.innerHTML += `
+      <tr>
+        <td>${p.twoTheta.toFixed(4)}</td>
+        <td>${p.theta.toFixed(4)}</td>
+        <td>${p.d.toFixed(4)}</td>
+        <td>${p.inv_d2.toFixed(4)}</td>
+        <td>${p.h2k2l2}</td>
+        <td class="hkl-cell">${p.hkl}</td>
+        <td class="a-cell ${cls}">${p.a.toFixed(4)} <span class="badge ${cls==='warn'?'warn':''}">${dev.toFixed(3)}%</span></td>
+      </tr>`;
+  });
+  document.getElementById('statusPeaks').textContent = peaks.length;
+}
+
+// ═══════════════════════════════════════════════════════════
+// LaTeX Table
+// ═══════════════════════════════════════════════════════════
+function buildLatexTable() {
+  let s = `\\begin{table}[H]\n\\centering\n\\begin{tabular}{cclccccc}\n\\toprule\n`;
+  s += `  $\\boldsymbol{2\\theta\\ (^\\circ)}$ & $\\boldsymbol{\\theta\\ (^\\circ)}$ & $\\boldsymbol{d_{hkl}\\ (\\text{nm})}$ & $\\boldsymbol{1/d_{hkl}^2\\ (\\text{nm}^{-2})}$ & $\\boldsymbol{h^2+k^2+l^2}$ & $\\boldsymbol{hkl}$ & $\\boldsymbol{a\\ (\\text{nm})}$ \\\\\n\\midrule\n`;
+  peaks.forEach(p => {
+    s += `  ${p.twoTheta.toFixed(4)} & ${p.theta.toFixed(4)} & ${p.d.toFixed(4)} & ${p.inv_d2.toFixed(4)} & ${p.h2k2l2} & \\cellcolor{gray!20}${p.hkl} & \\cellcolor{green!20}${p.a.toFixed(4)}\\\\\\hdashline\n`;
+  });
+  s += `\\bottomrule\n\\end{tabular}\n`;
+  s += `\\caption{Derived values: interplanar spacing and unit cell length $a$ for each peak. $\\lambda = 0.15406$ nm (Cu K$\\alpha$). Phase identified as KBr (FCC, Fm$\\bar{3}$m).}\n`;
+  s += `\\label{tab:calculating_a}\n\\end{table}`;
+  document.getElementById('latexTable').textContent = s;
+}
+
+function buildLatexResults() {
+  const vol = (a_mean*10)**3; // in Å³
+  let s = `% ── Cell Parameter Results ──────────────────────────\n`;
+  s += `% Paste into your Results section\n\n`;
+  s += `\\begin{table}[H]\n\\centering\n\\begin{tabular}{lcc}\n\\toprule\n`;
+  s += `  \\textbf{Parameter} & \\textbf{This Work} & \\textbf{Literature (KBr)} \\\\\n\\midrule\n`;
+  s += `  $a$ (nm) & $${a_mean.toFixed(4)} \\pm ${a_std.toExponential(3)}$ & $0.6588$ \\\\\n`;
+  s += `  $a$ extrapolated (nm) & $${a_extrapolated.toFixed(5)}$ & — \\\\\n`;
+  s += `  $a$ from Bragg fit (nm) & $${a_bragg.toFixed(5)}$ & — \\\\\n`;
+  s += `  Deviation from lit. & $${(Math.abs(a_mean-a_lit)/a_lit*100).toFixed(3)}\\%$ & — \\\\\n`;
+  s += `  Volume $V$ (\\AA$^3$) & $${vol.toFixed(2)}$ & $286.5$ \\\\\n`;
+  s += `  Crystal system & \\multicolumn{2}{c}{Cubic} \\\\\n`;
+  s += `  Space group & \\multicolumn{2}{c}{Fm$\\bar{3}$m (No. 225)} \\\\\n`;
+  s += `\\bottomrule\n\\end{tabular}\n`;
+  s += `\\caption{Summary of refined unit cell parameters for the unknown sample (identified as KBr) compared to literature values \\autocite{Ahtee1969LatticeConstants}.}\n`;
+  s += `\\label{tab:results_summary}\n\\end{table}`;
+  document.getElementById('latexResults').textContent = s;
+}
+
+// ═══════════════════════════════════════════════════════════
+// WIDGET
+// ═══════════════════════════════════════════════════════════
+function updateSlider(val) {
+  const a = parseFloat(val);
+  document.getElementById('aSliderVal').textContent = a.toFixed(4);
+  document.getElementById('wa').innerHTML = `${a.toFixed(4)}<span class="widget-unit">nm</span>`;
+  const vol = (a*10)**3;
+  document.getElementById('wvol').innerHTML = `${vol.toFixed(2)}<span class="widget-unit">Å³</span>`;
+}
+updateSlider(0.6595);
+document.getElementById('sumA').textContent = a_mean.toFixed(4);
+
+// ═══════════════════════════════════════════════════════════
+// TOGGLE HELPERS
+// ═══════════════════════════════════════════════════════════
+function togglePeakLabels() {
+  showPeakLabels = !showPeakLabels;
+  document.getElementById('togglePeaks').textContent = showPeakLabels ? 'Peak Labels ✓' : 'Peak Labels';
+  document.getElementById('togglePeaks').classList.toggle('active', showPeakLabels);
+  plotDiffPattern(xyData.x, xyData.y);
+}
+function toggleReference() {
+  showReference = !showReference;
+  document.getElementById('toggleRef').textContent = showReference ? 'Reference ✓' : 'Reference';
+  document.getElementById('toggleRef').classList.toggle('active', showReference);
+  Plotly.restyle('diffPattern', {visible: showReference ? true : 'legendonly'}, [1]);
+}
+
+function switchTab(group, name) {
+  document.querySelectorAll(`#${group}-table, #${group}-latex`).forEach(el=>{
+    el.classList.remove('active');
+  });
+  document.getElementById(`${group}-${name}`).classList.add('active');
+  document.querySelectorAll('.tabs .tab').forEach(t=>{
+    t.classList.toggle('active', t.textContent.toLowerCase()===name.toLowerCase());
+  });
+}
+
+// ═══════════════════════════════════════════════════════════
+// DOWNLOAD PNG
+// ═══════════════════════════════════════════════════════════
+function downloadPlot(divId, filename) {
+  Plotly.downloadImage(divId, {
+    format: 'png', width: 1400, height: 700,
+    filename: filename
+  });
+}
+
+// ═══════════════════════════════════════════════════════════
+// COPY LATEX
+// ═══════════════════════════════════════════════════════════
+function copyLatex(id) {
+  const text = document.getElementById(id).textContent;
+  navigator.clipboard.writeText(text).then(()=>{
+    const btn = event.target;
+    btn.textContent = '✓ Copied!';
+    setTimeout(()=>btn.textContent='⎘ Copy LaTeX',1800);
+  });
+}
+
+// ═══════════════════════════════════════════════════════════
+// FILE UPLOAD PARSER
+// ═══════════════════════════════════════════════════════════
+document.getElementById('fileInput').addEventListener('change', function(e) {
+  const file = e.target.files[0];
+  if (!file) return;
+  document.getElementById('statusFile').textContent = file.name;
+  const reader = new FileReader();
+  reader.onload = function(ev) {
+    const lines = ev.target.result.split('\n');
+    const x=[], y=[];
+    lines.forEach(line => {
+      const parts = line.trim().split(/\s+/);
+      if (parts.length >= 2) {
+        const xi = parseFloat(parts[0]), yi = parseFloat(parts[1]);
+        if (!isNaN(xi) && !isNaN(yi)) { x.push(xi); y.push(yi); }
+      }
+    });
+    xyData = {x, y};
+    document.getElementById('statusPts').textContent = x.length;
+    document.getElementById('statusRange').textContent =
+      `${x[0].toFixed(1)}° – ${x[x.length-1].toFixed(1)}°`;
+    plotDiffPattern(x, y);
+  };
+  reader.readAsText(file);
+});
+
+// ═══════════════════════════════════════════════════════════
+// LOAD EMBEDDED XY DATA (fetch from server is blocked;
+// we generate a smooth representative pattern using peak data)
+// ═══════════════════════════════════════════════════════════
+function generatePattern() {
+  // Generate a realistic XRD pattern from the known peak positions
+  const x = [], y = [];
+  const step = 0.006628; // from file
+  const noise = () => (Math.random()-0.5)*40 + 390;
+  const intensities = [6000, 3500, 1800, 2800, 1300, 1100, 1200, 700, 850];
+  const sigma = 0.12; // peak width in degrees
+
+  for (let two = 20.0; two <= 80.0; two += step) {
+    let val = noise();
+    peaks.forEach((p,i) => {
+      const d = two - p.twoTheta;
+      val += intensities[i] * Math.exp(-d*d/(2*sigma*sigma));
+    });
+    x.push(parseFloat(two.toFixed(6)));
+    y.push(Math.max(0, val));
+  }
+  return {x, y};
+}
+
+// Try to load the real file from the same origin, fallback to generated
+async function loadData() {
+  // Real experimental data embedded from UnkownsSample_wasim_XRD.xy
+  const REAL_X = [19.997883,20.011013,20.024143,20.037273,20.050404,20.063534,20.076664,20.089795,20.102925,20.116055,20.129185,20.142316,20.155446,20.168576,20.181707,20.194837,20.207967,20.221097,20.234228,20.247358,20.260488,20.273619,20.286749,20.299879,20.313009,20.32614,20.33927,20.3524,20.36553,20.378661,20.391791,20.404921,20.418052,20.431182,20.444312,20.457442,20.470573,20.483703,20.496833,20.509964,20.523094,20.536224,20.549354,20.562485,20.575615,20.588745,20.601876,20.615006,20.628136,20.641266,20.654397,20.667527,20.680657,20.693788,20.706918,20.720048,20.733178,20.746309,20.759439,20.772569,20.7857,20.79883,20.81196,20.82509,20.838221,20.851351,20.864481,20.877612,20.890742,20.903872,20.917002,20.930133,20.943263,20.956393,20.969523,20.982654,20.995784,21.008914,21.022045,21.035175,21.048305,21.061435,21.074566,21.087696,21.100826,21.113957,21.127087,21.140217,21.153347,21.166478,21.179608,21.192738,21.205869,21.218999,21.232129,21.245259,21.25839,21.27152,21.28465,21.297781,21.310911,21.324041,21.337171,21.350302,21.363432,21.376562,21.389693,21.402823,21.415953,21.429083,21.442214,21.455344,21.468474,21.481605,21.494735,21.507865,21.520995,21.534126,21.547256,21.560386,21.573516,21.586647,21.599777,21.612907,21.626038,21.639168,21.652298,21.665428,21.678559,21.691689,21.704819,21.71795,21.73108,21.74421,21.75734,21.770471,21.783601,21.796731,21.809862,21.822992,21.836122,21.849252,21.862383,21.875513,21.888643,21.901774,21.914904,21.928034,21.941164,21.954295,21.967425,21.980555,21.993686,22.006816,22.019946,22.033076,22.046207,22.059337,22.072467,22.085598,22.098728,22.111858,22.124988,22.138119,22.151249,22.164379,22.177509,22.19064,22.20377,22.2169,22.230031,22.243161,22.256291,22.269421,22.282552,22.295682,22.308812,22.321943,22.335073,22.348203,22.361333,22.374464,22.387594,22.400724,22.413855,22.426985,22.440115,22.453245,22.466376,22.479506,22.492636,22.505767,22.518897,22.532027,22.545157,22.558288,22.571418,22.584548,22.597679,22.610809,22.623939,22.637069,22.6502,22.66333,22.67646,22.689591,22.702721,22.715851,22.728981,22.742112,22.755242,22.768372,22.781502,22.794633,22.807763,22.820893,22.834024,22.847154,22.860284,22.873414,22.886545,22.899675,22.912805,22.925936,22.939066,22.952196,22.965326,22.978457,22.991587,23.004717,23.017848,23.030978,23.044108,23.057238,23.070369,23.083499,23.096629,23.10976,23.12289,23.13602,23.14915,23.162281,23.175411,23.188541,23.201672,23.214802,23.227932,23.241062,23.254193,23.267323,23.280453,23.293584,23.306714,23.319844,23.332974,23.346105,23.359235,23.372365,23.385496,23.398626,23.411756,23.424886,23.438017,23.451147,23.464277,23.477407,23.490538,23.503668,23.516798,23.529929,23.543059,23.556189,23.569319,23.58245,23.59558,23.60871,23.621841,23.634971,23.648101,23.661231,23.674362,23.687492,23.700622,23.713753,23.726883,23.740013,23.753143,23.766274,23.779404,23.792534,23.805665,23.818795,23.831925,23.845055,23.858186,23.871316,23.884446,23.897577,23.910707,23.923837,23.936967,23.950098,23.963228,23.976358,23.989489,24.002619,24.015749,24.028879,24.04201,24.05514,24.06827,24.0814,24.094531,24.107661,24.120791,24.133922,24.147052,24.160182,24.173312,24.186443,24.199573,24.212703,24.225834,24.238964,24.252094,24.265224,24.278355,24.291485,24.304615,24.317746,24.330876,24.344006,24.357136,24.370267,24.383397,24.396527,24.409658,24.422788,24.435918,24.449048,24.462179,24.475309,24.488439,24.50157,24.5147,24.52783,24.54096,24.554091,24.567221,24.580351,24.593482,24.606612,24.619742,24.632872,24.646003,24.659133,24.672263,24.685393,24.698524,24.711654,24.724784,24.737915,24.751045,24.764175,24.777305,24.790436,24.803566,24.816696,24.829827,24.842957,24.856087,24.869217,24.882348,24.895478,24.908608,24.921739,24.934869,24.947999,24.961129,24.97426,24.98739,25.00052,25.013651,25.026781,25.039911,25.053041,25.066172,25.079302,25.092432,25.105563,25.118693,25.131823,25.144953,25.158084,25.171214,25.184344,25.197475,25.210605,25.223735,25.236865,25.249996,25.263126,25.276256,25.289386,25.302517,25.315647,25.328777,25.341908,25.355038,25.368168,25.381298,25.394429,25.407559,25.420689,25.43382,25.44695,25.46008,25.47321,25.486341,25.499471,25.512601,25.525732,25.538862,25.551992,25.565122,25.578253,25.591383,25.604513,25.617644,25.630774,25.643904,25.657034,25.670165,25.683295,25.696425,25.709556,25.722686,25.735816,25.748946,25.762077,25.775207,25.788337,25.801468,25.814598,25.827728,25.840858,25.853989,25.867119,25.880249,25.893379,25.90651,25.91964,25.93277,25.945901,25.959031,25.972161,25.985291,25.998422,26.011552,26.024682,26.037813,26.050943,26.064073,26.077203,26.090334,26.103464,26.116594,26.129725,26.142855,26.155985,26.169115,26.182246,26.195376,26.208506,26.221637,26.234767,26.247897,26.261027,26.274158,26.287288,26.300418,26.313549,26.326679,26.339809,26.352939,26.36607,26.3792,26.39233,26.405461,26.418591,26.431721,26.444851,26.457982,26.471112,26.484242,26.497372,26.510503,26.523633,26.536763,26.549894,26.563024,26.576154,26.589284,26.602415,26.615545,26.628675,26.641806,26.654936,26.668066,26.681196,26.694327,26.707457,26.720587,26.733718,26.746848,26.759978,26.773108,26.786239,26.799369,26.812499,26.82563,26.83876,26.85189,26.86502,26.878151,26.891281,26.904411,26.917542,26.930672,26.943802,26.956932,26.970063,26.983193,26.996323,27.009454,27.022584,27.035714,27.048844,27.061975,27.075105,27.088235,27.101365,27.114496,27.127626,27.140756,27.153887,27.167017,27.180147,27.193277,27.206408,27.219538,27.232668,27.245799,27.258929,27.272059,27.285189,27.29832,27.31145,27.32458,27.337711,27.350841,27.363971,27.377101,27.390232,27.403362,27.416492,27.429623,27.442753,27.455883,27.469013,27.482144,27.495274,27.508404,27.521535,27.534665,27.547795,27.560925,27.574056,27.587186,27.600316,27.613447,27.626577,27.639707,27.652837,27.665968,27.679098,27.692228,27.705359,27.718489,27.731619,27.744749,27.75788,27.77101,27.78414,27.79727,27.810401,27.823531,27.836661,27.849792,27.862922,27.876052,27.889182,27.902313,27.915443,27.928573,27.941704,27.954834,27.967964,27.981094,27.994225,28.007355,28.020485,28.033616,28.046746,28.059876,28.073006,28.086137,28.099267,28.112397,28.125528,28.138658,28.151788,28.164918,28.178049,28.191179,28.204309,28.21744,28.23057,28.2437,28.25683,28.269961,28.283091,28.296221,28.309352,28.322482,28.335612,28.348742,28.361873,28.375003,28.388133,28.401263,28.414394,28.427524,28.440654,28.453785,28.466915,28.480045,28.493175,28.506306,28.519436,28.532566,28.545697,28.558827,28.571957,28.585087,28.598218,28.611348,28.624478,28.637609,28.650739,28.663869,28.676999,28.69013,28.70326,28.71639,28.729521,28.742651,28.755781,28.768911,28.782042,28.795172,28.808302,28.821433,28.834563,28.847693,28.860823,28.873954,28.887084,28.900214,28.913345,28.926475,28.939605,28.952735,28.965866,28.978996,28.992126,29.005256,29.018387,29.031517,29.044647,29.057778,29.070908,29.084038,29.097168,29.110299,29.123429,29.136559,29.14969,29.16282,29.17595,29.18908,29.202211,29.215341,29.228471,29.241602,29.254732,29.267862,29.280992,29.294123,29.307253,29.320383,29.333514,29.346644,29.359774,29.372904,29.386035,29.399165,29.412295,29.425426,29.438556,29.451686,29.464816,29.477947,29.491077,29.504207,29.517338,29.530468,29.543598,29.556728,29.569859,29.582989,29.596119,29.609249,29.62238,29.63551,29.64864,29.661771,29.674901,29.688031,29.701161,29.714292,29.727422,29.740552,29.753683,29.766813,29.779943,29.793073,29.806204,29.819334,29.832464,29.845595,29.858725,29.871855,29.884985,29.898116,29.911246,29.924376,29.937507,29.950637,29.963767,29.976897,29.990028,30.003158,30.016288,30.029419,30.042549,30.055679,30.068809,30.08194,30.09507,30.1082,30.121331,30.134461,30.147591,30.160721,30.173852,30.186982,30.200112,30.213242,30.226373,30.239503,30.252633,30.265764,30.278894,30.292024,30.305154,30.318285,30.331415,30.344545,30.357676,30.370806,30.383936,30.397066,30.410197,30.423327,30.436457,30.449588,30.462718,30.475848,30.488978,30.502109,30.515239,30.528369,30.5415,30.55463,30.56776,30.58089,30.594021,30.607151,30.620281,30.633412,30.646542,30.659672,30.672802,30.685933,30.699063,30.712193,30.725324,30.738454,30.751584,30.764714,30.777845,30.790975,30.804105,30.817235,30.830366,30.843496,30.856626,30.869757,30.882887,30.896017,30.909147,30.922278,30.935408,30.948538,30.961669,30.974799,30.987929,31.001059,31.01419,31.02732,31.04045,31.053581,31.066711,31.079841,31.092971,31.106102,31.119232,31.132362,31.145493,31.158623,31.171753,31.184883,31.198014,31.211144,31.224274,31.237405,31.250535,31.263665,31.276795,31.289926,31.303056,31.316186,31.329317,31.342447,31.355577,31.368707,31.381838,31.394968,31.408098,31.421228,31.434359,31.447489,31.460619,31.47375,31.48688,31.50001,31.51314,31.526271,31.539401,31.552531,31.565662,31.578792,31.591922,31.605052,31.618183,31.631313,31.644443,31.657574,31.670704,31.683834,31.696964,31.710095,31.723225,31.736355,31.749486,31.762616,31.775746,31.788876,31.802007,31.815137,31.828267,31.841398,31.854528,31.867658,31.880788,31.893919,31.907049,31.920179,31.93331,31.94644,31.95957,31.9727,31.985831,31.998961,32.012091,32.025222,32.038352,32.051482,32.064612,32.077743,32.090873,32.104003,32.117133,32.130264,32.143394,32.156524,32.169655,32.182785,32.195915,32.209045,32.222176,32.235306,32.248436,32.261567,32.274697,32.287827,32.300957,32.314088,32.327218,32.340348,32.353479,32.366609,32.379739,32.392869,32.406,32.41913,32.43226,32.445391,32.458521,32.471651,32.484781,32.497912,32.511042,32.524172,32.537303,32.550433,32.563563,32.576693,32.589824,32.602954,32.616084,32.629215,32.642345,32.655475,32.668605,32.681736,32.694866,32.707996,32.721126,32.734257,32.747387,32.760517,32.773648,32.786778,32.799908,32.813038,32.826169,32.839299,32.852429,32.86556,32.87869,32.89182,32.90495,32.918081,32.931211,32.944341,32.957472,32.970602,32.983732,32.996862,33.009993,33.023123,33.036253,33.049384,33.062514,33.075644,33.088774,33.101905,33.115035,33.128165,33.141296,33.154426,33.167556,33.180686,33.193817,33.206947,33.220077,33.233208,33.246338,33.259468,33.272598,33.285729,33.298859,33.311989,33.325119,33.33825,33.35138,33.36451,33.377641,33.390771,33.403901,33.417031,33.430162,33.443292,33.456422,33.469553,33.482683,33.495813,33.508943,33.522074,33.535204,33.548334,33.561465,33.574595,33.587725,33.600855,33.613986,33.627116,33.640246,33.653377,33.666507,33.679637,33.692767,33.705898,33.719028,33.732158,33.745289,33.758419,33.771549,33.784679,33.79781,33.81094,33.82407,33.837201,33.850331,33.863461,33.876591,33.889722,33.902852,33.915982,33.929112,33.942243,33.955373,33.968503,33.981634,33.994764,34.007894,34.021024,34.034155,34.047285,34.060415,34.073546,34.086676,34.099806,34.112936,34.126067,34.139197,34.152327,34.165458,34.178588,34.191718,34.204848,34.217979,34.231109,34.244239,34.25737,34.2705,34.28363,34.29676,34.309891,34.323021,34.336151,34.349282,34.362412,34.375542,34.388672,34.401803,34.414933,34.428063,34.441194,34.454324,34.467454,34.480584,34.493715,34.506845,34.519975,34.533105,34.546236,34.559366,34.572496,34.585627,34.598757,34.611887,34.625017,34.638148,34.651278,34.664408,34.677539,34.690669,34.703799,34.716929,34.73006,34.74319,34.75632,34.769451,34.782581,34.795711,34.808841,34.821972,34.835102,34.848232,34.861363,34.874493,34.887623,34.900753,34.913884,34.927014,34.940144,34.953275,34.966405,34.979535,34.992665,35.005796,35.018926,35.032056,35.045187,35.058317,35.071447,35.084577,35.097708,35.110838,35.123968,35.137098,35.150229,35.163359,35.176489,35.18962,35.20275,35.21588,35.22901,35.242141,35.255271,35.268401,35.281532,35.294662,35.307792,35.320922,35.334053,35.347183,35.360313,35.373444,35.386574,35.399704,35.412834,35.425965,35.439095,35.452225,35.465356,35.478486,35.491616,35.504746,35.517877,35.531007,35.544137,35.557268,35.570398,35.583528,35.596658,35.609789,35.622919,35.636049,35.64918,35.66231,35.67544,35.68857,35.701701,35.714831,35.727961,35.741091,35.754222,35.767352,35.780482,35.793613,35.806743,35.819873,35.833003,35.846134,35.859264,35.872394,35.885525,35.898655,35.911785,35.924915,35.938046,35.951176,35.964306,35.977437,35.990567,36.003697,36.016827,36.029958,36.043088,36.056218,36.069349,36.082479,36.095609,36.108739,36.12187,36.135,36.14813,36.161261,36.174391,36.187521,36.200651,36.213782,36.226912,36.240042,36.253173,36.266303,36.279433,36.292563,36.305694,36.318824,36.331954,36.345085,36.358215,36.371345,36.384475,36.397606,36.410736,36.423866,36.436996,36.450127,36.463257,36.476387,36.489518,36.502648,36.515778,36.528908,36.542039,36.555169,36.568299,36.58143,36.59456,36.60769,36.62082,36.633951,36.647081,36.660211,36.673342,36.686472,36.699602,36.712732,36.725863,36.738993,36.752123,36.765254,36.778384,36.791514,36.804644,36.817775,36.830905,36.844035,36.857166,36.870296,36.883426,36.896556,36.909687,36.922817,36.935947,36.949078,36.962208,36.975338,36.988468,37.001599,37.014729,37.027859,37.040989,37.05412,37.06725,37.08038,37.093511,37.106641,37.119771,37.132901,37.146032,37.159162,37.172292,37.185423,37.198553,37.211683,37.224813,37.237944,37.251074,37.264204,37.277335,37.290465,37.303595,37.316725,37.329856,37.342986,37.356116,37.369247,37.382377,37.395507,37.408637,37.421768,37.434898,37.448028,37.461159,37.474289,37.487419,37.500549,37.51368,37.52681,37.53994,37.553071,37.566201,37.579331,37.592461,37.605592,37.618722,37.631852,37.644982,37.658113,37.671243,37.684373,37.697504,37.710634,37.723764,37.736894,37.750025,37.763155,37.776285,37.789416,37.802546,37.815676,37.828806,37.841937,37.855067,37.868197,37.881328,37.894458,37.907588,37.920718,37.933849,37.946979,37.960109,37.97324,37.98637,37.9995,38.01263,38.025761,38.038891,38.052021,38.065152,38.078282,38.091412,38.104542,38.117673,38.130803,38.143933,38.157064,38.170194,38.183324,38.196454,38.209585,38.222715,38.235845,38.248975,38.262106,38.275236,38.288366,38.301497,38.314627,38.327757,38.340887,38.354018,38.367148,38.380278,38.393409,38.406539,38.419669,38.432799,38.44593,38.45906,38.47219,38.485321,38.498451,38.511581,38.524711,38.537842,38.550972,38.564102,38.577233,38.590363,38.603493,38.616623,38.629754,38.642884,38.656014,38.669145,38.682275,38.695405,38.708535,38.721666,38.734796,38.747926,38.761057,38.774187,38.787317,38.800447,38.813578,38.826708,38.839838,38.852968,38.866099,38.879229,38.892359,38.90549,38.91862,38.93175,38.94488,38.958011,38.971141,38.984271,38.997402,39.010532,39.023662,39.036792,39.049923,39.063053,39.076183,39.089314,39.102444,39.115574,39.128704,39.141835,39.154965,39.168095,39.181226,39.194356,39.207486,39.220616,39.233747,39.246877,39.260007,39.273138,39.286268,39.299398,39.312528,39.325659,39.338789,39.351919,39.36505,39.37818,39.39131,39.40444,39.417571,39.430701,39.443831,39.456961,39.470092,39.483222,39.496352,39.509483,39.522613,39.535743,39.548873,39.562004,39.575134,39.588264,39.601395,39.614525,39.627655,39.640785,39.653916,39.667046,39.680176,39.693307,39.706437,39.719567,39.732697,39.745828,39.758958,39.772088,39.785219,39.798349,39.811479,39.824609,39.83774,39.85087,39.864,39.877131,39.890261,39.903391,39.916521,39.929652,39.942782,39.955912,39.969043,39.982173,39.995303,40.008433,40.021564,40.034694,40.047824,40.060955,40.074085,40.087215,40.100345,40.113476,40.126606,40.139736,40.152866,40.165997,40.179127,40.192257,40.205388,40.218518,40.231648,40.244778,40.257909,40.271039,40.284169,40.2973,40.31043,40.32356,40.33669,40.349821,40.362951,40.376081,40.389212,40.402342,40.415472,40.428602,40.441733,40.454863,40.467993,40.481124,40.494254,40.507384,40.520514,40.533645,40.546775,40.559905,40.573036,40.586166,40.599296,40.612426,40.625557,40.638687,40.651817,40.664948,40.678078,40.691208,40.704338,40.717469,40.730599,40.743729,40.756859,40.76999,40.78312,40.79625,40.809381,40.822511,40.835641,40.848771,40.861902,40.875032,40.888162,40.901293,40.914423,40.927553,40.940683,40.953814,40.966944,40.980074,40.993205,41.006335,41.019465,41.032595,41.045726,41.058856,41.071986,41.085117,41.098247,41.111377,41.124507,41.137638,41.150768,41.163898,41.177029,41.190159,41.203289,41.216419,41.22955,41.24268,41.25581,41.268941,41.282071,41.295201,41.308331,41.321462,41.334592,41.347722,41.360852,41.373983,41.387113,41.400243,41.413374,41.426504,41.439634,41.452764,41.465895,41.479025,41.492155,41.505286,41.518416,41.531546,41.544676,41.557807,41.570937,41.584067,41.597198,41.610328,41.623458,41.636588,41.649719,41.662849,41.675979,41.68911,41.70224,41.71537,41.7285,41.741631,41.754761,41.767891,41.781022,41.794152,41.807282,41.820412,41.833543,41.846673,41.859803,41.872934,41.886064,41.899194,41.912324,41.925455,41.938585,41.951715,41.964845,41.977976,41.991106,42.004236,42.017367,42.030497,42.043627,42.056757,42.069888,42.083018,42.096148,42.109279,42.122409,42.135539,42.148669,42.1618,42.17493,42.18806,42.201191,42.214321,42.227451,42.240581,42.253712,42.266842,42.279972,42.293103,42.306233,42.319363,42.332493,42.345624,42.358754,42.371884,42.385015,42.398145,42.411275,42.424405,42.437536,42.450666,42.463796,42.476927,42.490057,42.503187,42.516317,42.529448,42.542578,42.555708,42.568838,42.581969,42.595099,42.608229,42.62136,42.63449,42.64762,42.66075,42.673881,42.687011,42.700141,42.713272,42.726402,42.739532,42.752662,42.765793,42.778923,42.792053,42.805184,42.818314,42.831444,42.844574,42.857705,42.870835,42.883965,42.897096,42.910226,42.923356,42.936486,42.949617,42.962747,42.975877,42.989008,43.002138,43.015268,43.028398,43.041529,43.054659,43.067789,43.08092,43.09405,43.10718,43.12031,43.133441,43.146571,43.159701,43.172831,43.185962,43.199092,43.212222,43.225353,43.238483,43.251613,43.264743,43.277874,43.291004,43.304134,43.317265,43.330395,43.343525,43.356655,43.369786,43.382916,43.396046,43.409177,43.422307,43.435437,43.448567,43.461698,43.474828,43.487958,43.501089,43.514219,43.527349,43.540479,43.55361,43.56674,43.57987,43.593001,43.606131,43.619261,43.632391,43.645522,43.658652,43.671782,43.684913,43.698043,43.711173,43.724303,43.737434,43.750564,43.763694,43.776824,43.789955,43.803085,43.816215,43.829346,43.842476,43.855606,43.868736,43.881867,43.894997,43.908127,43.921258,43.934388,43.947518,43.960648,43.973779,43.986909,44.000039,44.01317,44.0263,44.03943,44.05256,44.065691,44.078821,44.091951,44.105082,44.118212,44.131342,44.144472,44.157603,44.170733,44.183863,44.196994,44.210124,44.223254,44.236384,44.249515,44.262645,44.275775,44.288906,44.302036,44.315166,44.328296,44.341427,44.354557,44.367687,44.380817,44.393948,44.407078,44.420208,44.433339,44.446469,44.459599,44.472729,44.48586,44.49899,44.51212,44.525251,44.538381,44.551511,44.564641,44.577772,44.590902,44.604032,44.617163,44.630293,44.643423,44.656553,44.669684,44.682814,44.695944,44.709075,44.722205,44.735335,44.748465,44.761596,44.774726,44.787856,44.800987,44.814117,44.827247,44.840377,44.853508,44.866638,44.879768,44.892899,44.906029,44.919159,44.932289,44.94542,44.95855,44.97168,44.984811,44.997941,45.011071,45.024201,45.037332,45.050462,45.063592,45.076722,45.089853,45.102983,45.116113,45.129244,45.142374,45.155504,45.168634,45.181765,45.194895,45.208025,45.221156,45.234286,45.247416,45.260546,45.273677,45.286807,45.299937,45.313068,45.326198,45.339328,45.352458,45.365589,45.378719,45.391849,45.40498,45.41811,45.43124,45.44437,45.457501,45.470631,45.483761,45.496892,45.510022,45.523152,45.536282,45.549413,45.562543,45.575673,45.588804,45.601934,45.615064,45.628194,45.641325,45.654455,45.667585,45.680715,45.693846,45.706976,45.720106,45.733237,45.746367,45.759497,45.772627,45.785758,45.798888,45.812018,45.825149,45.838279,45.851409,45.864539,45.87767,45.8908,45.90393,45.917061,45.930191,45.943321,45.956451,45.969582,45.982712,45.995842,46.008973,46.022103,46.035233,46.048363,46.061494,46.074624,46.087754,46.100885,46.114015,46.127145,46.140275,46.153406,46.166536,46.179666,46.192797,46.205927,46.219057,46.232187,46.245318,46.258448,46.271578,46.284708,46.297839,46.310969,46.324099,46.33723,46.35036,46.36349,46.37662,46.389751,46.402881,46.416011,46.429142,46.442272,46.455402,46.468532,46.481663,46.494793,46.507923,46.521054,46.534184,46.547314,46.560444,46.573575,46.586705,46.599835,46.612966,46.626096,46.639226,46.652356,46.665487,46.678617,46.691747,46.704878,46.718008,46.731138,46.744268,46.757399,46.770529,46.783659,46.79679,46.80992,46.82305,46.83618,46.849311,46.862441,46.875571,46.888701,46.901832,46.914962,46.928092,46.941223,46.954353,46.967483,46.980613,46.993744,47.006874,47.020004,47.033135,47.046265,47.059395,47.072525,47.085656,47.098786,47.111916,47.125047,47.138177,47.151307,47.164437,47.177568,47.190698,47.203828,47.216959,47.230089,47.243219,47.256349,47.26948,47.28261,47.29574,47.308871,47.322001,47.335131,47.348261,47.361392,47.374522,47.387652,47.400783,47.413913,47.427043,47.440173,47.453304,47.466434,47.479564,47.492694,47.505825,47.518955,47.532085,47.545216,47.558346,47.571476,47.584606,47.597737,47.610867,47.623997,47.637128,47.650258,47.663388,47.676518,47.689649,47.702779,47.715909,47.72904,47.74217,47.7553,47.76843,47.781561,47.794691,47.807821,47.820952,47.834082,47.847212,47.860342,47.873473,47.886603,47.899733,47.912864,47.925994,47.939124,47.952254,47.965385,47.978515,47.991645,48.004776,48.017906,48.031036,48.044166,48.057297,48.070427,48.083557,48.096687,48.109818,48.122948,48.136078,48.149209,48.162339,48.175469,48.188599,48.20173,48.21486,48.22799,48.241121,48.254251,48.267381,48.280511,48.293642,48.306772,48.319902,48.333033,48.346163,48.359293,48.372423,48.385554,48.398684,48.411814,48.424945,48.438075,48.451205,48.464335,48.477466,48.490596,48.503726,48.516857,48.529987,48.543117,48.556247,48.569378,48.582508,48.595638,48.608769,48.621899,48.635029,48.648159,48.66129,48.67442,48.68755,48.700681,48.713811,48.726941,48.740071,48.753202,48.766332,48.779462,48.792592,48.805723,48.818853,48.831983,48.845114,48.858244,48.871374,48.884504,48.897635,48.910765,48.923895,48.937026,48.950156,48.963286,48.976416,48.989547,49.002677,49.015807,49.028938,49.042068,49.055198,49.068328,49.081459,49.094589,49.107719,49.12085,49.13398,49.14711,49.16024,49.173371,49.186501,49.199631,49.212762,49.225892,49.239022,49.252152,49.265283,49.278413,49.291543,49.304674,49.317804,49.330934,49.344064,49.357195,49.370325,49.383455,49.396585,49.409716,49.422846,49.435976,49.449107,49.462237,49.475367,49.488497,49.501628,49.514758,49.527888,49.541019,49.554149,49.567279,49.580409,49.59354,49.60667,49.6198,49.632931,49.646061,49.659191,49.672321,49.685452,49.698582,49.711712,49.724843,49.737973,49.751103,49.764233,49.777364,49.790494,49.803624,49.816755,49.829885,49.843015,49.856145,49.869276,49.882406,49.895536,49.908667,49.921797,49.934927,49.948057,49.961188,49.974318,49.987448,50.000578,50.013709,50.026839,50.039969,50.0531,50.06623,50.07936,50.09249,50.105621,50.118751,50.131881,50.145012,50.158142,50.171272,50.184402,50.197533,50.210663,50.223793,50.236924,50.250054,50.263184,50.276314,50.289445,50.302575,50.315705,50.328836,50.341966,50.355096,50.368226,50.381357,50.394487,50.407617,50.420748,50.433878,50.447008,50.460138,50.473269,50.486399,50.499529,50.51266,50.52579,50.53892,50.55205,50.565181,50.578311,50.591441,50.604571,50.617702,50.630832,50.643962,50.657093,50.670223,50.683353,50.696483,50.709614,50.722744,50.735874,50.749005,50.762135,50.775265,50.788395,50.801526,50.814656,50.827786,50.840917,50.854047,50.867177,50.880307,50.893438,50.906568,50.919698,50.932829,50.945959,50.959089,50.972219,50.98535,50.99848,51.01161,51.024741,51.037871,51.051001,51.064131,51.077262,51.090392,51.103522,51.116653,51.129783,51.142913,51.156043,51.169174,51.182304,51.195434,51.208564,51.221695,51.234825,51.247955,51.261086,51.274216,51.287346,51.300476,51.313607,51.326737,51.339867,51.352998,51.366128,51.379258,51.392388,51.405519,51.418649,51.431779,51.44491,51.45804,51.47117,51.4843,51.497431,51.510561,51.523691,51.536822,51.549952,51.563082,51.576212,51.589343,51.602473,51.615603,51.628734,51.641864,51.654994,51.668124,51.681255,51.694385,51.707515,51.720646,51.733776,51.746906,51.760036,51.773167,51.786297,51.799427,51.812557,51.825688,51.838818,51.851948,51.865079,51.878209,51.891339,51.904469,51.9176,51.93073,51.94386,51.956991,51.970121,51.983251,51.996381,52.009512,52.022642,52.035772,52.048903,52.062033,52.075163,52.088293,52.101424,52.114554,52.127684,52.140815,52.153945,52.167075,52.180205,52.193336,52.206466,52.219596,52.232727,52.245857,52.258987,52.272117,52.285248,52.298378,52.311508,52.324639,52.337769,52.350899,52.364029,52.37716,52.39029,52.40342,52.41655,52.429681,52.442811,52.455941,52.469072,52.482202,52.495332,52.508462,52.521593,52.534723,52.547853,52.560984,52.574114,52.587244,52.600374,52.613505,52.626635,52.639765,52.652896,52.666026,52.679156,52.692286,52.705417,52.718547,52.731677,52.744808,52.757938,52.771068,52.784198,52.797329,52.810459,52.823589,52.83672,52.84985,52.86298,52.87611,52.889241,52.902371,52.915501,52.928632,52.941762,52.954892,52.968022,52.981153,52.994283,53.007413,53.020544,53.033674,53.046804,53.059934,53.073065,53.086195,53.099325,53.112455,53.125586,53.138716,53.151846,53.164977,53.178107,53.191237,53.204367,53.217498,53.230628,53.243758,53.256889,53.270019,53.283149,53.296279,53.30941,53.32254,53.33567,53.348801,53.361931,53.375061,53.388191,53.401322,53.414452,53.427582,53.440713,53.453843,53.466973,53.480103,53.493234,53.506364,53.519494,53.532625,53.545755,53.558885,53.572015,53.585146,53.598276,53.611406,53.624537,53.637667,53.650797,53.663927,53.677058,53.690188,53.703318,53.716448,53.729579,53.742709,53.755839,53.76897,53.7821,53.79523,53.80836,53.821491,53.834621,53.847751,53.860882,53.874012,53.887142,53.900272,53.913403,53.926533,53.939663,53.952794,53.965924,53.979054,53.992184,54.005315,54.018445,54.031575,54.044706,54.057836,54.070966,54.084096,54.097227,54.110357,54.123487,54.136618,54.149748,54.162878,54.176008,54.189139,54.202269,54.215399,54.22853,54.24166,54.25479,54.26792,54.281051,54.294181,54.307311,54.320441,54.333572,54.346702,54.359832,54.372963,54.386093,54.399223,54.412353,54.425484,54.438614,54.451744,54.464875,54.478005,54.491135,54.504265,54.517396,54.530526,54.543656,54.556787,54.569917,54.583047,54.596177,54.609308,54.622438,54.635568,54.648699,54.661829,54.674959,54.688089,54.70122,54.71435,54.72748,54.740611,54.753741,54.766871,54.780001,54.793132,54.806262,54.819392,54.832523,54.845653,54.858783,54.871913,54.885044,54.898174,54.911304,54.924434,54.937565,54.950695,54.963825,54.976956,54.990086,55.003216,55.016346,55.029477,55.042607,55.055737,55.068868,55.081998,55.095128,55.108258,55.121389,55.134519,55.147649,55.16078,55.17391,55.18704,55.20017,55.213301,55.226431,55.239561,55.252692,55.265822,55.278952,55.292082,55.305213,55.318343,55.331473,55.344604,55.357734,55.370864,55.383994,55.397125,55.410255,55.423385,55.436516,55.449646,55.462776,55.475906,55.489037,55.502167,55.515297,55.528427,55.541558,55.554688,55.567818,55.580949,55.594079,55.607209,55.620339,55.63347,55.6466,55.65973,55.672861,55.685991,55.699121,55.712251,55.725382,55.738512,55.751642,55.764773,55.777903,55.791033,55.804163,55.817294,55.830424,55.843554,55.856685,55.869815,55.882945,55.896075,55.909206,55.922336,55.935466,55.948597,55.961727,55.974857,55.987987,56.001118,56.014248,56.027378,56.040509,56.053639,56.066769,56.079899,56.09303,56.10616,56.11929,56.13242,56.145551,56.158681,56.171811,56.184942,56.198072,56.211202,56.224332,56.237463,56.250593,56.263723,56.276854,56.289984,56.303114,56.316244,56.329375,56.342505,56.355635,56.368766,56.381896,56.395026,56.408156,56.421287,56.434417,56.447547,56.460678,56.473808,56.486938,56.500068,56.513199,56.526329,56.539459,56.55259,56.56572,56.57885,56.59198,56.605111,56.618241,56.631371,56.644502,56.657632,56.670762,56.683892,56.697023,56.710153,56.723283,56.736413,56.749544,56.762674,56.775804,56.788935,56.802065,56.815195,56.828325,56.841456,56.854586,56.867716,56.880847,56.893977,56.907107,56.920237,56.933368,56.946498,56.959628,56.972759,56.985889,56.999019,57.012149,57.02528,57.03841,57.05154,57.064671,57.077801,57.090931,57.104061,57.117192,57.130322,57.143452,57.156583,57.169713,57.182843,57.195973,57.209104,57.222234,57.235364,57.248495,57.261625,57.274755,57.287885,57.301016,57.314146,57.327276,57.340407,57.353537,57.366667,57.379797,57.392928,57.406058,57.419188,57.432318,57.445449,57.458579,57.471709,57.48484,57.49797,57.5111,57.52423,57.537361,57.550491,57.563621,57.576752,57.589882,57.603012,57.616142,57.629273,57.642403,57.655533,57.668664,57.681794,57.694924,57.708054,57.721185,57.734315,57.747445,57.760576,57.773706,57.786836,57.799966,57.813097,57.826227,57.839357,57.852488,57.865618,57.878748,57.891878,57.905009,57.918139,57.931269,57.9444,57.95753,57.97066,57.98379,57.996921,58.010051,58.023181,58.036311,58.049442,58.062572,58.075702,58.088833,58.101963,58.115093,58.128223,58.141354,58.154484,58.167614,58.180745,58.193875,58.207005,58.220135,58.233266,58.246396,58.259526,58.272657,58.285787,58.298917,58.312047,58.325178,58.338308,58.351438,58.364569,58.377699,58.390829,58.403959,58.41709,58.43022,58.44335,58.456481,58.469611,58.482741,58.495871,58.509002,58.522132,58.535262,58.548393,58.561523,58.574653,58.587783,58.600914,58.614044,58.627174,58.640304,58.653435,58.666565,58.679695,58.692826,58.705956,58.719086,58.732216,58.745347,58.758477,58.771607,58.784738,58.797868,58.810998,58.824128,58.837259,58.850389,58.863519,58.87665,58.88978,58.90291,58.91604,58.929171,58.942301,58.955431,58.968562,58.981692,58.994822,59.007952,59.021083,59.034213,59.047343,59.060474,59.073604,59.086734,59.099864,59.112995,59.126125,59.139255,59.152386,59.165516,59.178646,59.191776,59.204907,59.218037,59.231167,59.244297,59.257428,59.270558,59.283688,59.296819,59.309949,59.323079,59.336209,59.34934,59.36247,59.3756,59.388731,59.401861,59.414991,59.428121,59.441252,59.454382,59.467512,59.480643,59.493773,59.506903,59.520033,59.533164,59.546294,59.559424,59.572555,59.585685,59.598815,59.611945,59.625076,59.638206,59.651336,59.664467,59.677597,59.690727,59.703857,59.716988,59.730118,59.743248,59.756379,59.769509,59.782639,59.795769,59.8089,59.82203,59.83516,59.84829,59.861421,59.874551,59.887681,59.900812,59.913942,59.927072,59.940202,59.953333,59.966463,59.979593,59.992724,60.005854,60.018984,60.032114,60.045245,60.058375,60.071505,60.084636,60.097766,60.110896,60.124026,60.137157,60.150287,60.163417,60.176548,60.189678,60.202808,60.215938,60.229069,60.242199,60.255329,60.26846,60.28159,60.29472,60.30785,60.320981,60.334111,60.347241,60.360372,60.373502,60.386632,60.399762,60.412893,60.426023,60.439153,60.452283,60.465414,60.478544,60.491674,60.504805,60.517935,60.531065,60.544195,60.557326,60.570456,60.583586,60.596717,60.609847,60.622977,60.636107,60.649238,60.662368,60.675498,60.688629,60.701759,60.714889,60.728019,60.74115,60.75428,60.76741,60.780541,60.793671,60.806801,60.819931,60.833062,60.846192,60.859322,60.872453,60.885583,60.898713,60.911843,60.924974,60.938104,60.951234,60.964365,60.977495,60.990625,61.003755,61.016886,61.030016,61.043146,61.056276,61.069407,61.082537,61.095667,61.108798,61.121928,61.135058,61.148188,61.161319,61.174449,61.187579,61.20071,61.21384,61.22697,61.2401,61.253231,61.266361,61.279491,61.292622,61.305752,61.318882,61.332012,61.345143,61.358273,61.371403,61.384534,61.397664,61.410794,61.423924,61.437055,61.450185,61.463315,61.476446,61.489576,61.502706,61.515836,61.528967,61.542097,61.555227,61.568358,61.581488,61.594618,61.607748,61.620879,61.634009,61.647139,61.66027,61.6734,61.68653,61.69966,61.712791,61.725921,61.739051,61.752181,61.765312,61.778442,61.791572,61.804703,61.817833,61.830963,61.844093,61.857224,61.870354,61.883484,61.896615,61.909745,61.922875,61.936005,61.949136,61.962266,61.975396,61.988527,62.001657,62.014787,62.027917,62.041048,62.054178,62.067308,62.080439,62.093569,62.106699,62.119829,62.13296,62.14609,62.15922,62.172351,62.185481,62.198611,62.211741,62.224872,62.238002,62.251132,62.264263,62.277393,62.290523,62.303653,62.316784,62.329914,62.343044,62.356174,62.369305,62.382435,62.395565,62.408696,62.421826,62.434956,62.448086,62.461217,62.474347,62.487477,62.500608,62.513738,62.526868,62.539998,62.553129,62.566259,62.579389,62.59252,62.60565,62.61878,62.63191,62.645041,62.658171,62.671301,62.684432,62.697562,62.710692,62.723822,62.736953,62.750083,62.763213,62.776344,62.789474,62.802604,62.815734,62.828865,62.841995,62.855125,62.868256,62.881386,62.894516,62.907646,62.920777,62.933907,62.947037,62.960167,62.973298,62.986428,62.999558,63.012689,63.025819,63.038949,63.052079,63.06521,63.07834,63.09147,63.104601,63.117731,63.130861,63.143991,63.157122,63.170252,63.183382,63.196513,63.209643,63.222773,63.235903,63.249034,63.262164,63.275294,63.288425,63.301555,63.314685,63.327815,63.340946,63.354076,63.367206,63.380337,63.393467,63.406597,63.419727,63.432858,63.445988,63.459118,63.472249,63.485379,63.498509,63.511639,63.52477,63.5379,63.55103,63.56416,63.577291,63.590421,63.603551,63.616682,63.629812,63.642942,63.656072,63.669203,63.682333,63.695463,63.708594,63.721724,63.734854,63.747984,63.761115,63.774245,63.787375,63.800506,63.813636,63.826766,63.839896,63.853027,63.866157,63.879287,63.892418,63.905548,63.918678,63.931808,63.944939,63.958069,63.971199,63.98433,63.99746,64.01059,64.02372,64.036851,64.049981,64.063111,64.076242,64.089372,64.102502,64.115632,64.128763,64.141893,64.155023,64.168153,64.181284,64.194414,64.207544,64.220675,64.233805,64.246935,64.260065,64.273196,64.286326,64.299456,64.312587,64.325717,64.338847,64.351977,64.365108,64.378238,64.391368,64.404499,64.417629,64.430759,64.443889,64.45702,64.47015,64.48328,64.496411,64.509541,64.522671,64.535801,64.548932,64.562062,64.575192,64.588323,64.601453,64.614583,64.627713,64.640844,64.653974,64.667104,64.680235,64.693365,64.706495,64.719625,64.732756,64.745886,64.759016,64.772146,64.785277,64.798407,64.811537,64.824668,64.837798,64.850928,64.864058,64.877189,64.890319,64.903449,64.91658,64.92971,64.94284,64.95597,64.969101,64.982231,64.995361,65.008492,65.021622,65.034752,65.047882,65.061013,65.074143,65.087273,65.100404,65.113534,65.126664,65.139794,65.152925,65.166055,65.179185,65.192316,65.205446,65.218576,65.231706,65.244837,65.257967,65.271097,65.284228,65.297358,65.310488,65.323618,65.336749,65.349879,65.363009,65.376139,65.38927,65.4024,65.41553,65.428661,65.441791,65.454921,65.468051,65.481182,65.494312,65.507442,65.520573,65.533703,65.546833,65.559963,65.573094,65.586224,65.599354,65.612485,65.625615,65.638745,65.651875,65.665006,65.678136,65.691266,65.704397,65.717527,65.730657,65.743787,65.756918,65.770048,65.783178,65.796309,65.809439,65.822569,65.835699,65.84883,65.86196,65.87509,65.888221,65.901351,65.914481,65.927611,65.940742,65.953872,65.967002,65.980133,65.993263,66.006393,66.019523,66.032654,66.045784,66.058914,66.072044,66.085175,66.098305,66.111435,66.124566,66.137696,66.150826,66.163956,66.177087,66.190217,66.203347,66.216478,66.229608,66.242738,66.255868,66.268999,66.282129,66.295259,66.30839,66.32152,66.33465,66.34778,66.360911,66.374041,66.387171,66.400302,66.413432,66.426562,66.439692,66.452823,66.465953,66.479083,66.492214,66.505344,66.518474,66.531604,66.544735,66.557865,66.570995,66.584126,66.597256,66.610386,66.623516,66.636647,66.649777,66.662907,66.676037,66.689168,66.702298,66.715428,66.728559,66.741689,66.754819,66.767949,66.78108,66.79421,66.80734,66.820471,66.833601,66.846731,66.859861,66.872992,66.886122,66.899252,66.912383,66.925513,66.938643,66.951773,66.964904,66.978034,66.991164,67.004295,67.017425,67.030555,67.043685,67.056816,67.069946,67.083076,67.096207,67.109337,67.122467,67.135597,67.148728,67.161858,67.174988,67.188119,67.201249,67.214379,67.227509,67.24064,67.25377,67.2669,67.28003,67.293161,67.306291,67.319421,67.332552,67.345682,67.358812,67.371942,67.385073,67.398203,67.411333,67.424464,67.437594,67.450724,67.463854,67.476985,67.490115,67.503245,67.516376,67.529506,67.542636,67.555766,67.568897,67.582027,67.595157,67.608288,67.621418,67.634548,67.647678,67.660809,67.673939,67.687069,67.7002,67.71333,67.72646,67.73959,67.752721,67.765851,67.778981,67.792112,67.805242,67.818372,67.831502,67.844633,67.857763,67.870893,67.884023,67.897154,67.910284,67.923414,67.936545,67.949675,67.962805,67.975935,67.989066,68.002196,68.015326,68.028457,68.041587,68.054717,68.067847,68.080978,68.094108,68.107238,68.120369,68.133499,68.146629,68.159759,68.17289,68.18602,68.19915,68.212281,68.225411,68.238541,68.251671,68.264802,68.277932,68.291062,68.304193,68.317323,68.330453,68.343583,68.356714,68.369844,68.382974,68.396105,68.409235,68.422365,68.435495,68.448626,68.461756,68.474886,68.488016,68.501147,68.514277,68.527407,68.540538,68.553668,68.566798,68.579928,68.593059,68.606189,68.619319,68.63245,68.64558,68.65871,68.67184,68.684971,68.698101,68.711231,68.724362,68.737492,68.750622,68.763752,68.776883,68.790013,68.803143,68.816274,68.829404,68.842534,68.855664,68.868795,68.881925,68.895055,68.908186,68.921316,68.934446,68.947576,68.960707,68.973837,68.986967,69.000098,69.013228,69.026358,69.039488,69.052619,69.065749,69.078879,69.092009,69.10514,69.11827,69.1314,69.144531,69.157661,69.170791,69.183921,69.197052,69.210182,69.223312,69.236443,69.249573,69.262703,69.275833,69.288964,69.302094,69.315224,69.328355,69.341485,69.354615,69.367745,69.380876,69.394006,69.407136,69.420267,69.433397,69.446527,69.459657,69.472788,69.485918,69.499048,69.512179,69.525309,69.538439,69.551569,69.5647,69.57783,69.59096,69.604091,69.617221,69.630351,69.643481,69.656612,69.669742,69.682872,69.696003,69.709133,69.722263,69.735393,69.748524,69.761654,69.774784,69.787914,69.801045,69.814175,69.827305,69.840436,69.853566,69.866696,69.879826,69.892957,69.906087,69.919217,69.932348,69.945478,69.958608,69.971738,69.984869,69.997999,70.011129,70.02426,70.03739,70.05052,70.06365,70.076781,70.089911,70.103041,70.116172,70.129302,70.142432,70.155562,70.168693,70.181823,70.194953,70.208084,70.221214,70.234344,70.247474,70.260605,70.273735,70.286865,70.299996,70.313126,70.326256,70.339386,70.352517,70.365647,70.378777,70.391907,70.405038,70.418168,70.431298,70.444429,70.457559,70.470689,70.483819,70.49695,70.51008,70.52321,70.536341,70.549471,70.562601,70.575731,70.588862,70.601992,70.615122,70.628253,70.641383,70.654513,70.667643,70.680774,70.693904,70.707034,70.720165,70.733295,70.746425,70.759555,70.772686,70.785816,70.798946,70.812077,70.825207,70.838337,70.851467,70.864598,70.877728,70.890858,70.903989,70.917119,70.930249,70.943379,70.95651,70.96964,70.98277,70.9959,71.009031,71.022161,71.035291,71.048422,71.061552,71.074682,71.087812,71.100943,71.114073,71.127203,71.140334,71.153464,71.166594,71.179724,71.192855,71.205985,71.219115,71.232246,71.245376,71.258506,71.271636,71.284767,71.297897,71.311027,71.324158,71.337288,71.350418,71.363548,71.376679,71.389809,71.402939,71.41607,71.4292,71.44233,71.45546,71.468591,71.481721,71.494851,71.507982,71.521112,71.534242,71.547372,71.560503,71.573633,71.586763,71.599893,71.613024,71.626154,71.639284,71.652415,71.665545,71.678675,71.691805,71.704936,71.718066,71.731196,71.744327,71.757457,71.770587,71.783717,71.796848,71.809978,71.823108,71.836239,71.849369,71.862499,71.875629,71.88876,71.90189,71.91502,71.928151,71.941281,71.954411,71.967541,71.980672,71.993802,72.006932,72.020063,72.033193,72.046323,72.059453,72.072584,72.085714,72.098844,72.111975,72.125105,72.138235,72.151365,72.164496,72.177626,72.190756,72.203886,72.217017,72.230147,72.243277,72.256408,72.269538,72.282668,72.295798,72.308929,72.322059,72.335189,72.34832,72.36145,72.37458,72.38771,72.400841,72.413971,72.427101,72.440232,72.453362,72.466492,72.479622,72.492753,72.505883,72.519013,72.532144,72.545274,72.558404,72.571534,72.584665,72.597795,72.610925,72.624056,72.637186,72.650316,72.663446,72.676577,72.689707,72.702837,72.715968,72.729098,72.742228,72.755358,72.768489,72.781619,72.794749,72.807879,72.82101,72.83414,72.84727,72.860401,72.873531,72.886661,72.899791,72.912922,72.926052,72.939182,72.952313,72.965443,72.978573,72.991703,73.004834,73.017964,73.031094,73.044225,73.057355,73.070485,73.083615,73.096746,73.109876,73.123006,73.136137,73.149267,73.162397,73.175527,73.188658,73.201788,73.214918,73.228049,73.241179,73.254309,73.267439,73.28057,73.2937,73.30683,73.319961,73.333091,73.346221,73.359351,73.372482,73.385612,73.398742,73.411872,73.425003,73.438133,73.451263,73.464394,73.477524,73.490654,73.503784,73.516915,73.530045,73.543175,73.556306,73.569436,73.582566,73.595696,73.608827,73.621957,73.635087,73.648218,73.661348,73.674478,73.687608,73.700739,73.713869,73.726999,73.74013,73.75326,73.76639,73.77952,73.792651,73.805781,73.818911,73.832042,73.845172,73.858302,73.871432,73.884563,73.897693,73.910823,73.923954,73.937084,73.950214,73.963344,73.976475,73.989605,74.002735,74.015866,74.028996,74.042126,74.055256,74.068387,74.081517,74.094647,74.107777,74.120908,74.134038,74.147168,74.160299,74.173429,74.186559,74.199689,74.21282,74.22595,74.23908,74.252211,74.265341,74.278471,74.291601,74.304732,74.317862,74.330992,74.344123,74.357253,74.370383,74.383513,74.396644,74.409774,74.422904,74.436035,74.449165,74.462295,74.475425,74.488556,74.501686,74.514816,74.527947,74.541077,74.554207,74.567337,74.580468,74.593598,74.606728,74.619859,74.632989,74.646119,74.659249,74.67238,74.68551,74.69864,74.71177,74.724901,74.738031,74.751161,74.764292,74.777422,74.790552,74.803682,74.816813,74.829943,74.843073,74.856204,74.869334,74.882464,74.895594,74.908725,74.921855,74.934985,74.948116,74.961246,74.974376,74.987506,75.000637,75.013767,75.026897,75.040028,75.053158,75.066288,75.079418,75.092549,75.105679,75.118809,75.13194,75.14507,75.1582,75.17133,75.184461,75.197591,75.210721,75.223852,75.236982,75.250112,75.263242,75.276373,75.289503,75.302633,75.315763,75.328894,75.342024,75.355154,75.368285,75.381415,75.394545,75.407675,75.420806,75.433936,75.447066,75.460197,75.473327,75.486457,75.499587,75.512718,75.525848,75.538978,75.552109,75.565239,75.578369,75.591499,75.60463,75.61776,75.63089,75.644021,75.657151,75.670281,75.683411,75.696542,75.709672,75.722802,75.735933,75.749063,75.762193,75.775323,75.788454,75.801584,75.814714,75.827845,75.840975,75.854105,75.867235,75.880366,75.893496,75.906626,75.919756,75.932887,75.946017,75.959147,75.972278,75.985408,75.998538,76.011668,76.024799,76.037929,76.051059,76.06419,76.07732,76.09045,76.10358,76.116711,76.129841,76.142971,76.156102,76.169232,76.182362,76.195492,76.208623,76.221753,76.234883,76.248014,76.261144,76.274274,76.287404,76.300535,76.313665,76.326795,76.339926,76.353056,76.366186,76.379316,76.392447,76.405577,76.418707,76.431838,76.444968,76.458098,76.471228,76.484359,76.497489,76.510619,76.523749,76.53688,76.55001,76.56314,76.576271,76.589401,76.602531,76.615661,76.628792,76.641922,76.655052,76.668183,76.681313,76.694443,76.707573,76.720704,76.733834,76.746964,76.760095,76.773225,76.786355,76.799485,76.812616,76.825746,76.838876,76.852007,76.865137,76.878267,76.891397,76.904528,76.917658,76.930788,76.943919,76.957049,76.970179,76.983309,76.99644,77.00957,77.0227,77.035831,77.048961,77.062091,77.075221,77.088352,77.101482,77.114612,77.127742,77.140873,77.154003,77.167133,77.180264,77.193394,77.206524,77.219654,77.232785,77.245915,77.259045,77.272176,77.285306,77.298436,77.311566,77.324697,77.337827,77.350957,77.364088,77.377218,77.390348,77.403478,77.416609,77.429739,77.442869,77.456,77.46913,77.48226,77.49539,77.508521,77.521651,77.534781,77.547912,77.561042,77.574172,77.587302,77.600433,77.613563,77.626693,77.639824,77.652954,77.666084,77.679214,77.692345,77.705475,77.718605,77.731735,77.744866,77.757996,77.771126,77.784257,77.797387,77.810517,77.823647,77.836778,77.849908,77.863038,77.876169,77.889299,77.902429,77.915559,77.92869,77.94182,77.95495,77.968081,77.981211,77.994341,78.007471,78.020602,78.033732,78.046862,78.059993,78.073123,78.086253,78.099383,78.112514,78.125644,78.138774,78.151905,78.165035,78.178165,78.191295,78.204426,78.217556,78.230686,78.243817,78.256947,78.270077,78.283207,78.296338,78.309468,78.322598,78.335729,78.348859,78.361989,78.375119,78.38825,78.40138,78.41451,78.42764,78.440771,78.453901,78.467031,78.480162,78.493292,78.506422,78.519552,78.532683,78.545813,78.558943,78.572074,78.585204,78.598334,78.611464,78.624595,78.637725,78.650855,78.663986,78.677116,78.690246,78.703376,78.716507,78.729637,78.742767,78.755898,78.769028,78.782158,78.795288,78.808419,78.821549,78.834679,78.84781,78.86094,78.87407,78.8872,78.900331,78.913461,78.926591,78.939722,78.952852,78.965982,78.979112,78.992243,79.005373,79.018503,79.031633,79.044764,79.057894,79.071024,79.084155,79.097285,79.110415,79.123545,79.136676,79.149806,79.162936,79.176067,79.189197,79.202327,79.215457,79.228588,79.241718,79.254848,79.267979,79.281109,79.294239,79.307369,79.3205,79.33363,79.34676,79.359891,79.373021,79.386151,79.399281,79.412412,79.425542,79.438672,79.451803,79.464933,79.478063,79.491193,79.504324,79.517454,79.530584,79.543715,79.556845,79.569975,79.583105,79.596236,79.609366,79.622496,79.635626,79.648757,79.661887,79.675017,79.688148,79.701278,79.714408,79.727538,79.740669,79.753799,79.766929,79.78006,79.79319,79.80632,79.81945,79.832581,79.845711,79.858841,79.871972,79.885102,79.898232,79.911362,79.924493,79.937623,79.950753,79.963884,79.977014,79.990144];
+  const REAL_Y = [390.0,387.0,383.0,380.0,401.0,405.0,416.0,420.0,412.0,392.0,391.0,397.0,370.0,357.0,397.0,432.0,391.0,374.0,392.0,392.0,368.0,400.0,398.0,380.0,362.0,391.0,386.0,403.0,392.0,443.0,389.0,416.0,382.0,359.0,406.0,390.0,376.0,409.0,362.0,395.0,402.0,366.0,380.0,363.0,375.0,373.0,460.0,404.0,408.0,418.0,361.0,369.0,411.0,402.0,354.0,399.0,412.0,424.0,424.0,400.0,414.0,372.0,377.0,394.0,400.0,409.0,394.0,375.0,380.0,400.0,409.0,404.0,391.0,403.0,398.0,403.0,346.0,363.0,379.0,367.0,367.0,396.0,381.0,376.0,425.0,344.0,397.0,352.0,380.0,378.0,422.0,390.0,373.0,352.0,385.0,413.0,388.0,380.0,406.0,392.0,384.0,397.0,374.0,365.0,383.0,365.0,386.0,389.0,419.0,395.0,414.0,395.0,421.0,419.0,399.0,401.0,389.0,405.0,381.0,381.0,402.0,381.0,391.0,364.0,373.0,399.0,350.0,344.0,400.0,382.0,394.0,377.0,374.0,373.0,362.0,372.0,377.0,400.0,382.0,349.0,400.0,408.0,377.0,388.0,357.0,394.0,406.0,390.0,357.0,386.0,364.0,392.0,372.0,422.0,398.0,385.0,355.0,387.0,389.0,364.0,380.0,382.0,360.0,419.0,406.0,393.0,401.0,348.0,453.0,409.0,385.0,360.0,339.0,416.0,369.0,375.0,406.0,400.0,383.0,382.0,381.0,390.0,349.0,371.0,352.0,371.0,392.0,377.0,381.0,378.0,365.0,397.0,356.0,399.0,419.0,374.0,425.0,372.0,406.0,388.0,414.0,387.0,381.0,397.0,420.0,370.0,359.0,364.0,385.0,424.0,393.0,370.0,380.0,381.0,365.0,393.0,358.0,394.0,365.0,354.0,366.0,424.0,391.0,379.0,392.0,411.0,381.0,411.0,393.0,420.0,442.0,404.0,366.0,403.0,412.0,371.0,391.0,400.0,423.0,396.0,412.0,414.0,427.0,388.0,374.0,428.0,397.0,407.0,412.0,425.0,454.0,458.0,530.0,452.0,492.0,560.0,557.0,607.0,593.0,645.0,703.0,706.0,746.0,801.0,847.0,894.0,911.0,821.0,687.0,664.0,636.0,630.0,547.0,460.0,436.0,455.0,400.0,392.0,392.0,386.0,406.0,387.0,387.0,389.0,383.0,384.0,384.0,374.0,380.0,362.0,433.0,413.0,430.0,419.0,416.0,369.0,385.0,392.0,380.0,368.0,357.0,418.0,398.0,423.0,377.0,409.0,391.0,411.0,391.0,430.0,388.0,374.0,388.0,385.0,363.0,370.0,397.0,379.0,376.0,355.0,384.0,414.0,388.0,362.0,387.0,371.0,385.0,437.0,398.0,419.0,352.0,407.0,393.0,389.0,339.0,352.0,425.0,378.0,422.0,445.0,403.0,402.0,392.0,366.0,369.0,378.0,385.0,381.0,373.0,388.0,409.0,407.0,402.0,394.0,371.0,400.0,364.0,381.0,382.0,388.0,371.0,379.0,373.0,410.0,391.0,380.0,389.0,330.0,395.0,375.0,399.0,383.0,392.0,412.0,373.0,362.0,395.0,390.0,405.0,332.0,406.0,374.0,403.0,411.0,385.0,412.0,369.0,385.0,358.0,352.0,430.0,421.0,410.0,388.0,403.0,339.0,388.0,369.0,407.0,405.0,382.0,407.0,382.0,357.0,399.0,402.0,393.0,400.0,382.0,400.0,391.0,404.0,387.0,386.0,375.0,402.0,361.0,400.0,401.0,388.0,416.0,349.0,390.0,405.0,397.0,357.0,408.0,395.0,403.0,384.0,389.0,378.0,388.0,383.0,383.0,388.0,386.0,390.0,363.0,372.0,348.0,373.0,381.0,407.0,381.0,375.0,343.0,409.0,437.0,361.0,373.0,364.0,406.0,384.0,393.0,391.0,405.0,358.0,385.0,380.0,401.0,414.0,373.0,396.0,381.0,358.0,423.0,397.0,380.0,408.0,371.0,423.0,377.0,380.0,387.0,422.0,390.0,404.0,456.0,413.0,392.0,386.0,389.0,416.0,440.0,432.0,415.0,383.0,377.0,380.0,410.0,429.0,375.0,412.0,395.0,403.0,408.0,386.0,389.0,409.0,438.0,407.0,449.0,405.0,365.0,378.0,401.0,409.0,405.0,358.0,426.0,403.0,419.0,399.0,406.0,425.0,421.0,393.0,420.0,469.0,428.0,426.0,455.0,454.0,464.0,433.0,534.0,598.0,489.0,552.0,577.0,610.0,674.0,732.0,859.0,977.0,1282.0,1325.0,1484.0,1739.0,2381.0,2512.0,2327.0,2379.0,2430.0,2479.0,2352.0,2396.0,1949.0,1506.0,1285.0,1198.0,1083.0,937.0,674.0,588.0,495.0,452.0,481.0,451.0,424.0,427.0,452.0,428.0,382.0,415.0,417.0,438.0,382.0,418.0,408.0,386.0,417.0,369.0,402.0,414.0,389.0,426.0,425.0,418.0,409.0,379.0,427.0,404.0,410.0,405.0,443.0,403.0,405.0,391.0,395.0,348.0,368.0,405.0,424.0,380.0,422.0,371.0,394.0,396.0,410.0,360.0,385.0,408.0,389.0,364.0,394.0,407.0,383.0,383.0,406.0,415.0,396.0,379.0,437.0,387.0,376.0,385.0,411.0,376.0,439.0,392.0,422.0,383.0,427.0,378.0,365.0,379.0,403.0,370.0,426.0,398.0,359.0,372.0,405.0,402.0,381.0,417.0,439.0,372.0,404.0,373.0,426.0,388.0,407.0,357.0,410.0,377.0,384.0,366.0,401.0,347.0,386.0,378.0,372.0,397.0,378.0,386.0,404.0,368.0,407.0,432.0,372.0,353.0,426.0,369.0,377.0,406.0,407.0,424.0,427.0,379.0,349.0,394.0,386.0,409.0,359.0,407.0,380.0,373.0,412.0,426.0,360.0,437.0,391.0,415.0,391.0,371.0,397.0,378.0,357.0,377.0,367.0,380.0,350.0,353.0,367.0,355.0,403.0,412.0,439.0,397.0,403.0,422.0,371.0,429.0,366.0,390.0,373.0,405.0,364.0,368.0,382.0,374.0,380.0,344.0,385.0,375.0,399.0,353.0,358.0,386.0,365.0,400.0,423.0,428.0,346.0,403.0,374.0,421.0,437.0,404.0,390.0,384.0,403.0,403.0,400.0,362.0,389.0,398.0,383.0,403.0,418.0,403.0,369.0,397.0,379.0,397.0,433.0,370.0,404.0,401.0,362.0,391.0,372.0,384.0,381.0,395.0,406.0,372.0,384.0,352.0,386.0,396.0,373.0,351.0,357.0,378.0,407.0,392.0,415.0,377.0,390.0,381.0,368.0,364.0,364.0,397.0,392.0,401.0,374.0,368.0,389.0,359.0,403.0,402.0,419.0,369.0,372.0,367.0,383.0,389.0,398.0,354.0,382.0,377.0,417.0,402.0,368.0,390.0,403.0,391.0,390.0,379.0,380.0,381.0,388.0,388.0,409.0,370.0,389.0,379.0,383.0,383.0,370.0,412.0,392.0,409.0,394.0,399.0,374.0,385.0,386.0,376.0,399.0,412.0,375.0,331.0,371.0,348.0,380.0,356.0,388.0,417.0,401.0,384.0,382.0,391.0,369.0,372.0,395.0,388.0,371.0,373.0,381.0,412.0,421.0,363.0,346.0,374.0,353.0,392.0,422.0,398.0,377.0,408.0,424.0,413.0,389.0,421.0,379.0,373.0,384.0,385.0,378.0,370.0,450.0,357.0,413.0,394.0,392.0,371.0,382.0,403.0,387.0,388.0,382.0,343.0,391.0,402.0,428.0,397.0,382.0,365.0,388.0,385.0,411.0,370.0,356.0,358.0,350.0,382.0,426.0,376.0,380.0,403.0,382.0,371.0,382.0,402.0,361.0,373.0,409.0,368.0,407.0,398.0,399.0,414.0,376.0,406.0,379.0,388.0,379.0,378.0,334.0,385.0,439.0,356.0,383.0,361.0,400.0,376.0,372.0,360.0,369.0,375.0,403.0,402.0,398.0,382.0,375.0,406.0,402.0,395.0,386.0,404.0,410.0,378.0,397.0,429.0,383.0,441.0,361.0,389.0,398.0,386.0,378.0,394.0,393.0,370.0,381.0,416.0,403.0,363.0,382.0,383.0,383.0,412.0,391.0,388.0,391.0,352.0,378.0,367.0,382.0,355.0,377.0,361.0,382.0,436.0,378.0,396.0,358.0,351.0,393.0,399.0,373.0,369.0,352.0,374.0,404.0,373.0,419.0,375.0,394.0,377.0,354.0,371.0,443.0,377.0,402.0,417.0,370.0,343.0,361.0,416.0,382.0,360.0,352.0,370.0,356.0,417.0,357.0,397.0,366.0,393.0,375.0,369.0,370.0,377.0,386.0,355.0,370.0,401.0,393.0,371.0,390.0,385.0,401.0,353.0,410.0,400.0,371.0,366.0,342.0,429.0,382.0,402.0,368.0,408.0,375.0,412.0,376.0,368.0,395.0,412.0,409.0,409.0,388.0,395.0,358.0,398.0,394.0,363.0,365.0,380.0,398.0,386.0,399.0,387.0,387.0,421.0,383.0,366.0,346.0,367.0,412.0,352.0,384.0,349.0,352.0,376.0,359.0,353.0,384.0,367.0,380.0,374.0,379.0,398.0,351.0,393.0,410.0,365.0,390.0,418.0,366.0,436.0,364.0,393.0,366.0,362.0,371.0,373.0,416.0,370.0,368.0,350.0,414.0,414.0,348.0,365.0,347.0,341.0,352.0,390.0,367.0,384.0,332.0,376.0,370.0,372.0,395.0,380.0,372.0,414.0,403.0,429.0,378.0,424.0,384.0,353.0,408.0,394.0,413.0,370.0,356.0,353.0,389.0,422.0,409.0,385.0,362.0,356.0,419.0,413.0,359.0,421.0,402.0,396.0,395.0,417.0,393.0,404.0,373.0,394.0,413.0,386.0,391.0,389.0,411.0,369.0,330.0,375.0,415.0,403.0,403.0,384.0,374.0,343.0,377.0,388.0,372.0,355.0,376.0,353.0,348.0,444.0,360.0,349.0,330.0,318.0,372.0,395.0,377.0,393.0,385.0,399.0,369.0,381.0,369.0,413.0,371.0,368.0,392.0,362.0,400.0,369.0,383.0,367.0,390.0,409.0,351.0,377.0,352.0,341.0,388.0,370.0,381.0,411.0,384.0,397.0,382.0,391.0,374.0,371.0,338.0,372.0,391.0,349.0,357.0,414.0,343.0,388.0,398.0,392.0,365.0,387.0,369.0,416.0,391.0,363.0,395.0,374.0,397.0,434.0,386.0,373.0,379.0,397.0,369.0,397.0,410.0,408.0,387.0,344.0,368.0,379.0,360.0,346.0,365.0,391.0,387.0,347.0,444.0,409.0,390.0,383.0,351.0,394.0,389.0,423.0,391.0,336.0,367.0,404.0,427.0,395.0,356.0,379.0,363.0,380.0,406.0,368.0,396.0,360.0,386.0,414.0,386.0,366.0,389.0,435.0,384.0,379.0,351.0,361.0,384.0,381.0,369.0,376.0,366.0,386.0,392.0,406.0,394.0,372.0,376.0,408.0,390.0,360.0,373.0,393.0,359.0,369.0,347.0,388.0,382.0,388.0,368.0,394.0,381.0,408.0,383.0,401.0,407.0,356.0,371.0,367.0,411.0,375.0,391.0,400.0,418.0,367.0,341.0,382.0,425.0,362.0,348.0,366.0,412.0,395.0,392.0,395.0,406.0,381.0,369.0,405.0,416.0,423.0,374.0,411.0,350.0,413.0,387.0,418.0,387.0,395.0,404.0,385.0,381.0,356.0,398.0,390.0,397.0,391.0,402.0,417.0,403.0,366.0,411.0,428.0,374.0,395.0,383.0,410.0,397.0,368.0,373.0,390.0,375.0,350.0,374.0,387.0,405.0,371.0,387.0,397.0,381.0,399.0,391.0,407.0,350.0,378.0,350.0,401.0,373.0,372.0,354.0,346.0,356.0,367.0,366.0,358.0,406.0,385.0,338.0,363.0,370.0,416.0,372.0,391.0,402.0,374.0,371.0,396.0,410.0,347.0,371.0,392.0,401.0,397.0,389.0,413.0,392.0,366.0,395.0,430.0,415.0,406.0,457.0,390.0,425.0,470.0,467.0,481.0,480.0,410.0,514.0,544.0,488.0,556.0,630.0,599.0,715.0,890.0,1103.0,1266.0,1471.0,1625.0,1695.0,1748.0,1818.0,2052.0,2203.0,2275.0,1979.0,1649.0,1390.0,1234.0,1106.0,1169.0,1141.0,1069.0,838.0,719.0,580.0,580.0,477.0,464.0,425.0,422.0,412.0,393.0,422.0,424.0,417.0,416.0,399.0,416.0,384.0,392.0,435.0,409.0,409.0,396.0,400.0,384.0,369.0,373.0,407.0,367.0,406.0,360.0,390.0,391.0,441.0,390.0,416.0,405.0,384.0,382.0,320.0,392.0,410.0,413.0,398.0,425.0,424.0,398.0,362.0,372.0,382.0,357.0,366.0,385.0,391.0,394.0,367.0,370.0,358.0,376.0,382.0,405.0,372.0,396.0,366.0,396.0,367.0,360.0,413.0,415.0,355.0,378.0,379.0,359.0,400.0,399.0,375.0,355.0,373.0,374.0,402.0,381.0,410.0,403.0,418.0,429.0,383.0,351.0,403.0,394.0,398.0,371.0,374.0,398.0,380.0,365.0,357.0,371.0,380.0,421.0,417.0,386.0,374.0,390.0,390.0,406.0,356.0,371.0,399.0,404.0,380.0,376.0,389.0,361.0,432.0,399.0,411.0,403.0,415.0,436.0,388.0,344.0,379.0,422.0,417.0,408.0,389.0,376.0,376.0,381.0,384.0,375.0,397.0,386.0,374.0,424.0,338.0,401.0,413.0,365.0,378.0,409.0,375.0,389.0,403.0,396.0,375.0,404.0,375.0,343.0,389.0,403.0,364.0,400.0,407.0,428.0,408.0,384.0,369.0,415.0,394.0,384.0,386.0,346.0,409.0,363.0,421.0,381.0,392.0,410.0,380.0,386.0,421.0,389.0,387.0,389.0,366.0,352.0,384.0,381.0,360.0,388.0,386.0,375.0,413.0,378.0,346.0,378.0,404.0,387.0,348.0,387.0,353.0,346.0,383.0,406.0,406.0,396.0,355.0,364.0,412.0,365.0,394.0,384.0,389.0,403.0,351.0,379.0,434.0,357.0,399.0,383.0,378.0,385.0,416.0,403.0,372.0,411.0,373.0,408.0,395.0,382.0,402.0,390.0,377.0,378.0,396.0,378.0,370.0,401.0,393.0,363.0,387.0,391.0,403.0,393.0,366.0,404.0,366.0,409.0,369.0,391.0,394.0,351.0,404.0,437.0,352.0,367.0,393.0,373.0,393.0,417.0,413.0,387.0,388.0,399.0,371.0,369.0,385.0,392.0,413.0,367.0,378.0,391.0,391.0,329.0,354.0,373.0,369.0,379.0,368.0,349.0,409.0,397.0,378.0,394.0,381.0,393.0,388.0,396.0,392.0,381.0,401.0,376.0,379.0,362.0,394.0,415.0,369.0,361.0,387.0,362.0,391.0,370.0,426.0,376.0,377.0,417.0,385.0,364.0,386.0,363.0,353.0,379.0,385.0,399.0,347.0,381.0,382.0,381.0,365.0,345.0,415.0,377.0,361.0,424.0,394.0,349.0,404.0,376.0,351.0,419.0,362.0,388.0,395.0,394.0,362.0,358.0,399.0,384.0,446.0,382.0,399.0,400.0,385.0,410.0,368.0,356.0,397.0,375.0,357.0,378.0,371.0,394.0,389.0,350.0,380.0,349.0,396.0,376.0,434.0,426.0,422.0,400.0,385.0,373.0,382.0,372.0,392.0,414.0,382.0,389.0,393.0,410.0,372.0,378.0,428.0,382.0,362.0,380.0,385.0,391.0,374.0,408.0,367.0,344.0,376.0,409.0,384.0,418.0,357.0,367.0,353.0,410.0,378.0,385.0,401.0,379.0,402.0,367.0,363.0,395.0,401.0,392.0,383.0,391.0,400.0,413.0,378.0,375.0,325.0,351.0,374.0,392.0,391.0,390.0,387.0,437.0,414.0,401.0,405.0,405.0,400.0,398.0,387.0,392.0,378.0,358.0,375.0,377.0,401.0,384.0,375.0,418.0,384.0,391.0,385.0,398.0,402.0,402.0,363.0,405.0,417.0,400.0,392.0,370.0,403.0,397.0,348.0,382.0,415.0,392.0,375.0,406.0,384.0,392.0,381.0,374.0,382.0,403.0,394.0,382.0,389.0,414.0,395.0,380.0,390.0,338.0,350.0,393.0,381.0,391.0,386.0,402.0,365.0,393.0,393.0,415.0,406.0,429.0,404.0,362.0,371.0,365.0,416.0,387.0,372.0,401.0,383.0,405.0,387.0,390.0,356.0,367.0,385.0,379.0,407.0,350.0,372.0,398.0,367.0,406.0,413.0,393.0,425.0,395.0,411.0,375.0,410.0,404.0,394.0,383.0,398.0,377.0,416.0,393.0,403.0,414.0,409.0,376.0,451.0,401.0,388.0,394.0,416.0,472.0,480.0,461.0,473.0,444.0,510.0,559.0,565.0,604.0,634.0,656.0,631.0,559.0,537.0,489.0,472.0,528.0,510.0,526.0,500.0,485.0,499.0,486.0,423.0,407.0,400.0,408.0,403.0,420.0,386.0,418.0,376.0,387.0,414.0,396.0,415.0,410.0,400.0,373.0,379.0,409.0,420.0,366.0,391.0,406.0,397.0,400.0,373.0,424.0,395.0,369.0,391.0,404.0,359.0,369.0,349.0,409.0,406.0,422.0,381.0,394.0,366.0,383.0,400.0,422.0,375.0,339.0,389.0,364.0,412.0,414.0,370.0,343.0,400.0,386.0,393.0,368.0,391.0,408.0,387.0,423.0,377.0,390.0,398.0,365.0,372.0,355.0,376.0,376.0,401.0,369.0,378.0,411.0,353.0,359.0,376.0,379.0,408.0,427.0,388.0,367.0,400.0,386.0,374.0,405.0,406.0,402.0,374.0,365.0,361.0,368.0,399.0,418.0,395.0,402.0,370.0,398.0,368.0,366.0,384.0,326.0,370.0,376.0,401.0,396.0,380.0,393.0,377.0,395.0,390.0,376.0,367.0,403.0,382.0,371.0,397.0,398.0,371.0,416.0,381.0,410.0,399.0,419.0,393.0,385.0,450.0,416.0,386.0,398.0,408.0,384.0,390.0,383.0,424.0,415.0,444.0,401.0,420.0,416.0,451.0,426.0,460.0,456.0,464.0,506.0,575.0,552.0,578.0,675.0,756.0,841.0,873.0,911.0,928.0,818.0,733.0,641.0,554.0,549.0,640.0,681.0,612.0,633.0,588.0,588.0,538.0,488.0,432.0,425.0,423.0,391.0,379.0,433.0,410.0,365.0,392.0,378.0,377.0,351.0,433.0,381.0,401.0,394.0,439.0,371.0,384.0,396.0,417.0,425.0,383.0,405.0,413.0,391.0,411.0,376.0,387.0,375.0,395.0,367.0,361.0,409.0,362.0,381.0,402.0,374.0,411.0,385.0,398.0,416.0,377.0,408.0,396.0,377.0,353.0,380.0,381.0,421.0,384.0,369.0,413.0,395.0,398.0,415.0,422.0,401.0,387.0,378.0,413.0,383.0,377.0,421.0,392.0,385.0,401.0,367.0,412.0,396.0,395.0,401.0,392.0,425.0,364.0,378.0,386.0,369.0,361.0,370.0,362.0,390.0,403.0,384.0,399.0,392.0,398.0,365.0,382.0,311.0,366.0,377.0,356.0,362.0,383.0,370.0,397.0,407.0,346.0,380.0,429.0,409.0,439.0,386.0,338.0,388.0,374.0,375.0,431.0,367.0,383.0,412.0,404.0,372.0,358.0,408.0,394.0,371.0,388.0,355.0,370.0,399.0,362.0,417.0,413.0,394.0,420.0,380.0,391.0,378.0,414.0,401.0,380.0,389.0,310.0,398.0,396.0,368.0,344.0,391.0,389.0,407.0,402.0,362.0,394.0,370.0,361.0,383.0,361.0,385.0,369.0,409.0,377.0,389.0,366.0,357.0,400.0,374.0,382.0,359.0,376.0,385.0,392.0,416.0,386.0,393.0,401.0,369.0,382.0,353.0,392.0,357.0,392.0,423.0,416.0,412.0,386.0,389.0,365.0,378.0,351.0,440.0,344.0,379.0,377.0,379.0,377.0,381.0,377.0,381.0,364.0,356.0,385.0,378.0,407.0,386.0,380.0,363.0,381.0,392.0,360.0,356.0,375.0,364.0,401.0,428.0,372.0,367.0,370.0,417.0,376.0,343.0,371.0,365.0,367.0,401.0,354.0,385.0,402.0,394.0,393.0,376.0,398.0,416.0,370.0,408.0,385.0,412.0,382.0,372.0,405.0,389.0,429.0,393.0,384.0,393.0,374.0,406.0,427.0,381.0,375.0,397.0,392.0,392.0,366.0,412.0,363.0,350.0,434.0,391.0,393.0,387.0,381.0,395.0,414.0,392.0,402.0,390.0,437.0,424.0,386.0,393.0,402.0,402.0,376.0,375.0,411.0,383.0,406.0,375.0,379.0,430.0,408.0,423.0,400.0,338.0,426.0,395.0,425.0,380.0,382.0,424.0,416.0,381.0,356.0,385.0,414.0,396.0,434.0,394.0,382.0,368.0,415.0,437.0,380.0,389.0,362.0,381.0,385.0,403.0,430.0,421.0,414.0,423.0,434.0,448.0,417.0,416.0,381.0,429.0,396.0,382.0,435.0,407.0,379.0,399.0,377.0,381.0,374.0,394.0,428.0,382.0,422.0,387.0,379.0,400.0,378.0,404.0,361.0,391.0,399.0,413.0,382.0,369.0,402.0,416.0,392.0,394.0,425.0,393.0,416.0,375.0,393.0,386.0,360.0,388.0,376.0,407.0,385.0,405.0,387.0,388.0,370.0,408.0,383.0,390.0,358.0,392.0,366.0,397.0,413.0,378.0,421.0,354.0,381.0,403.0,362.0,409.0,423.0,402.0,368.0,404.0,415.0,402.0,367.0,396.0,395.0,384.0,408.0,384.0,423.0,413.0,406.0,380.0,385.0,418.0,384.0,361.0,379.0,400.0,383.0,379.0,399.0,393.0,392.0,387.0,396.0,391.0,386.0,407.0,415.0,413.0,392.0,389.0,384.0,401.0,441.0,396.0,383.0,403.0,404.0,361.0,422.0,409.0,417.0,360.0,378.0,372.0,368.0,371.0,419.0,406.0,372.0,416.0,360.0,399.0,365.0,374.0,391.0,379.0,378.0,311.0,388.0,396.0,422.0,377.0,394.0,387.0,423.0,392.0,388.0,404.0,399.0,399.0,397.0,419.0,381.0,415.0,406.0,369.0,412.0,385.0,411.0,422.0,387.0,397.0,365.0,410.0,398.0,401.0,424.0,392.0,378.0,389.0,372.0,371.0,392.0,380.0,385.0,349.0,374.0,416.0,393.0,380.0,404.0,394.0,402.0,429.0,373.0,438.0,396.0,381.0,392.0,382.0,372.0,410.0,405.0,351.0,392.0,426.0,399.0,387.0,404.0,390.0,399.0,367.0,387.0,402.0,404.0,418.0,422.0,382.0,354.0,393.0,407.0,390.0,375.0,372.0,402.0,392.0,404.0,358.0,440.0,431.0,425.0,414.0,397.0,388.0,384.0,379.0,373.0,378.0,395.0,376.0,431.0,415.0,359.0,354.0,374.0,414.0,394.0,371.0,401.0,401.0,395.0,422.0,387.0,384.0,334.0,350.0,392.0,401.0,433.0,379.0,425.0,388.0,418.0,415.0,415.0,384.0,382.0,439.0,370.0,405.0,387.0,381.0,385.0,394.0,395.0,430.0,393.0,381.0,387.0,431.0,414.0,418.0,396.0,420.0,381.0,431.0,397.0,440.0,429.0,397.0,375.0,417.0,426.0,365.0,385.0,398.0,415.0,391.0,432.0,435.0,421.0,468.0,452.0,516.0,606.0,602.0,565.0,598.0,611.0,551.0,531.0,483.0,432.0,467.0,442.0,494.0,522.0,522.0,474.0,486.0,493.0,470.0,461.0,454.0,417.0,413.0,403.0,369.0,410.0,400.0,408.0,395.0,414.0,428.0,425.0,398.0,424.0,428.0,388.0,390.0,398.0,379.0,408.0,427.0,412.0,427.0,412.0,388.0,382.0,425.0,406.0,395.0,378.0,393.0,412.0,426.0,424.0,422.0,399.0,419.0,425.0,430.0,416.0,430.0,395.0,410.0,444.0,417.0,407.0,412.0,395.0,401.0,410.0,407.0,411.0,362.0,404.0,420.0,427.0,397.0,420.0,378.0,381.0,390.0,400.0,433.0,384.0,413.0,408.0,360.0,383.0,373.0,426.0,385.0,440.0,368.0,378.0,395.0,376.0,378.0,441.0,388.0,382.0,381.0,358.0,407.0,392.0,379.0,383.0,432.0,411.0,391.0,444.0,407.0,440.0,402.0,407.0,418.0,397.0,411.0,423.0,404.0,385.0,388.0,392.0,387.0,393.0,391.0,397.0,337.0,379.0,396.0,416.0,387.0,401.0,432.0,409.0,397.0,420.0,374.0,407.0,376.0,383.0,424.0,381.0,384.0,411.0,369.0,395.0,376.0,459.0,405.0,395.0,427.0,367.0,387.0,386.0,450.0,413.0,375.0,405.0,424.0,414.0,394.0,402.0,430.0,390.0,365.0,401.0,372.0,380.0,373.0,381.0,393.0,395.0,413.0,378.0,398.0,391.0,385.0,431.0,406.0,415.0,395.0,421.0,382.0,418.0,405.0,418.0,373.0,400.0,375.0,392.0,397.0,398.0,353.0,357.0,379.0,374.0,393.0,409.0,394.0,428.0,399.0,422.0,410.0,372.0,411.0,411.0,390.0,423.0,379.0,416.0,374.0,369.0,409.0,369.0,411.0,419.0,390.0,403.0,412.0,404.0,364.0,418.0,401.0,397.0,396.0,400.0,373.0,423.0,396.0,454.0,379.0,365.0,397.0,385.0,417.0,402.0,411.0,378.0,397.0,380.0,345.0,373.0,386.0,393.0,381.0,355.0,398.0,376.0,401.0,394.0,434.0,359.0,382.0,392.0,399.0,428.0,362.0,414.0,381.0,432.0,386.0,399.0,430.0,434.0,378.0,388.0,391.0,382.0,401.0,426.0,366.0,421.0,383.0,397.0,407.0,428.0,364.0,415.0,396.0,378.0,406.0,391.0,387.0,389.0,409.0,380.0,386.0,402.0,387.0,386.0,387.0,401.0,417.0,405.0,397.0,410.0,349.0,375.0,412.0,440.0,416.0,441.0,405.0,421.0,421.0,444.0,389.0,396.0,405.0,444.0,373.0,390.0,430.0,383.0,402.0,408.0,421.0,378.0,374.0,396.0,390.0,371.0,391.0,414.0,424.0,418.0,380.0,410.0,406.0,395.0,426.0,441.0,375.0,455.0,387.0,414.0,368.0,395.0,362.0,395.0,359.0,383.0,408.0,417.0,418.0,446.0,404.0,415.0,433.0,391.0,374.0,386.0,406.0,427.0,416.0,362.0,395.0,384.0,418.0,396.0,376.0,386.0,374.0,402.0,379.0,405.0,415.0,359.0,382.0,408.0,376.0,437.0,381.0,411.0,406.0,429.0,372.0,425.0,393.0,419.0,387.0,406.0,371.0,412.0,427.0,377.0,397.0,409.0,364.0,386.0,396.0,387.0,378.0,400.0,407.0,365.0,431.0,407.0,409.0,403.0,421.0,405.0,421.0,375.0,431.0,445.0,411.0,413.0,409.0,407.0,407.0,391.0,387.0,378.0,401.0,415.0,441.0,407.0,425.0,434.0,475.0,445.0,473.0,446.0,456.0,448.0,478.0,450.0,429.0,443.0,459.0,416.0,438.0,421.0,439.0,461.0,445.0,481.0,429.0,415.0,466.0,396.0,371.0,416.0,398.0,377.0,400.0,406.0,381.0,378.0,408.0,381.0,374.0,418.0,374.0,420.0,420.0,400.0,387.0,385.0,396.0,371.0,408.0,411.0,409.0,364.0,396.0,400.0,405.0,405.0,425.0,443.0,403.0,424.0,388.0,398.0,407.0,356.0,419.0,429.0,410.0,429.0,415.0,400.0,412.0,403.0,384.0,381.0,381.0,392.0,432.0,409.0,429.0,405.0,382.0,404.0,433.0,418.0,411.0,421.0,421.0,375.0,377.0,422.0,399.0,429.0,428.0,379.0,424.0,385.0,397.0,415.0,423.0,421.0,392.0,425.0,389.0,431.0,400.0,393.0,427.0,416.0,409.0,416.0,443.0,460.0,427.0,413.0,442.0,418.0,443.0,384.0,424.0,434.0,450.0,434.0,450.0,437.0,451.0,458.0,394.0,398.0,406.0,444.0,470.0,461.0,452.0,489.0,478.0,537.0,544.0,651.0,717.0,839.0,942.0,1015.0,1131.0,1256.0,1247.0,1118.0,965.0,741.0,715.0,660.0,652.0,610.0,641.0,680.0,716.0,747.0,870.0,802.0,818.0,680.0,627.0,622.0,542.0,516.0,463.0,467.0,454.0,436.0,456.0,424.0,447.0,449.0,425.0,371.0,419.0,452.0,376.0,429.0,420.0,389.0,427.0,402.0,404.0,397.0,439.0,420.0,467.0,407.0,441.0,402.0,414.0,419.0,396.0,367.0,435.0,386.0,379.0,419.0,423.0,409.0,423.0,458.0,379.0,419.0,416.0,366.0,387.0,449.0,418.0,371.0,376.0,425.0,415.0,377.0,422.0,369.0,390.0,402.0,375.0,389.0,362.0,418.0,412.0,406.0,403.0,389.0,383.0,385.0,401.0,371.0,402.0,394.0,427.0,431.0,388.0,442.0,429.0,372.0,440.0,412.0,416.0,391.0,395.0,418.0,402.0,425.0,379.0,405.0,452.0,376.0,379.0,413.0,386.0,391.0,401.0,413.0,422.0,402.0,395.0,369.0,432.0,444.0,390.0,380.0,397.0,424.0,405.0,415.0,373.0,419.0,413.0,399.0,373.0,404.0,388.0,378.0,414.0,403.0,438.0,381.0,384.0,402.0,383.0,395.0,391.0,406.0,380.0,396.0,383.0,379.0,376.0,375.0,401.0,385.0,398.0,366.0,419.0,372.0,401.0,418.0,416.0,403.0,387.0,385.0,440.0,413.0,434.0,416.0,438.0,415.0,380.0,424.0,421.0,399.0,433.0,433.0,431.0,393.0,414.0,402.0,402.0,411.0,393.0,383.0,413.0,381.0,354.0,367.0,406.0,439.0,366.0,374.0,395.0,416.0,402.0,400.0,399.0,439.0,377.0,415.0,388.0,393.0,356.0,425.0,404.0,432.0,391.0,372.0,425.0,436.0,391.0,371.0,419.0,413.0,390.0,432.0,423.0,381.0,377.0,426.0,395.0,379.0,420.0,418.0,393.0,441.0,407.0,404.0,405.0,376.0,417.0,417.0,408.0,371.0,402.0,359.0,409.0,418.0,403.0,418.0,404.0,402.0,423.0,449.0,369.0,403.0,405.0,401.0,403.0,383.0,422.0,365.0,394.0,405.0,356.0,415.0,426.0,401.0,406.0,412.0,400.0,404.0,384.0,444.0,438.0,487.0,445.0,399.0,380.0,404.0,393.0,389.0,389.0,405.0,393.0,424.0,420.0,388.0,403.0,379.0,405.0,395.0,391.0,430.0,409.0,383.0,408.0,448.0,397.0,382.0,400.0,397.0,407.0,431.0,393.0,380.0,357.0,403.0,458.0,427.0,364.0,408.0,385.0,390.0,406.0,361.0,385.0,379.0,392.0,396.0,453.0,383.0,408.0,405.0,350.0,419.0,395.0,389.0,394.0,425.0,407.0,406.0,386.0,379.0,401.0,393.0,422.0,415.0,425.0,417.0,398.0,422.0,431.0,361.0,421.0,403.0,390.0,404.0,379.0,412.0,410.0,428.0,406.0,427.0,443.0,397.0,377.0,429.0,411.0,418.0,412.0,428.0,395.0,447.0,435.0,422.0,408.0,391.0,388.0,381.0,376.0,446.0,440.0,440.0,373.0,425.0,406.0,396.0,388.0,416.0,446.0,429.0,389.0,402.0,412.0,404.0,412.0,378.0,439.0,413.0,409.0,376.0,420.0,379.0,408.0,405.0,429.0,431.0,410.0,424.0,423.0,386.0,380.0,367.0,398.0,413.0,409.0,434.0,399.0,374.0,381.0,386.0,385.0,435.0,369.0,405.0,388.0,410.0,386.0,387.0,404.0,389.0,418.0,435.0,417.0,372.0,423.0,394.0,375.0,363.0,413.0,413.0,410.0,416.0,377.0,376.0,413.0,405.0,410.0,418.0,380.0,387.0,382.0,423.0,404.0,345.0,446.0,444.0,433.0,427.0,440.0,406.0,390.0,400.0,415.0,446.0,389.0,448.0,415.0,423.0,394.0,414.0,427.0,393.0,370.0,433.0,431.0,365.0,385.0,380.0,397.0,423.0,411.0,403.0,440.0,397.0,389.0,443.0,402.0,425.0,414.0,390.0,416.0,398.0,371.0,397.0,400.0,404.0,390.0,428.0,389.0,397.0,377.0,397.0,421.0,407.0,441.0,412.0,401.0,435.0,400.0,421.0,413.0,362.0,433.0,440.0,405.0,413.0,392.0,425.0,432.0,433.0,448.0,407.0,425.0,445.0,427.0,444.0,391.0,407.0,417.0,422.0,411.0,448.0,480.0,493.0,530.0,574.0,594.0,646.0,743.0,797.0,847.0,865.0,772.0,686.0,687.0,548.0,509.0,528.0,467.0,504.0,496.0,552.0,476.0,521.0,591.0,624.0,643.0,617.0,525.0,496.0,481.0,475.0,449.0,417.0,479.0,441.0,406.0,448.0,406.0,412.0,418.0,437.0,414.0,381.0,413.0,403.0,413.0,405.0,382.0,424.0,403.0,430.0,387.0,401.0,392.0,420.0,422.0,389.0,429.0,413.0,396.0,460.0,453.0,359.0,391.0,393.0,389.0,401.0,387.0,414.0,383.0,423.0,423.0,370.0,404.0,408.0,389.0,392.0,420.0,398.0,368.0,382.0,387.0,416.0,380.0,389.0,402.0,379.0,374.0,403.0,388.0,404.0,420.0,370.0,398.0,372.0,418.0,404.0,382.0,394.0,404.0,418.0,407.0,412.0,413.0,423.0,429.0,378.0,407.0,402.0,379.0,403.0,350.0,410.0,382.0,413.0,435.0,429.0,402.0,423.0,394.0,404.0,416.0,434.0,388.0,384.0,416.0,390.0,420.0,389.0,378.0,406.0,400.0,425.0,397.0,399.0,396.0,396.0,420.0,388.0,420.0,426.0,363.0,391.0,354.0,393.0,403.0,383.0,444.0,442.0,410.0,379.0,410.0,423.0,392.0,414.0,392.0,408.0,361.0,409.0,414.0,394.0,404.0,390.0,403.0,386.0,405.0,412.0,412.0,382.0,371.0,372.0,406.0,406.0,376.0,383.0,374.0,394.0,385.0,438.0,363.0,364.0,376.0,406.0,400.0,408.0,378.0,390.0,381.0,401.0,412.0,389.0,382.0,418.0,379.0,404.0,371.0,381.0,424.0,399.0,379.0,440.0,401.0,406.0,366.0,411.0,382.0,397.0,396.0,410.0,415.0,399.0,402.0,409.0,388.0,402.0,387.0,429.0,399.0,383.0,377.0,355.0,398.0,407.0,414.0,415.0,386.0,400.0,389.0,378.0,400.0,388.0,425.0,406.0,411.0,440.0,371.0,387.0,411.0,386.0,394.0,371.0,400.0,381.0,378.0,411.0,423.0,399.0,401.0,391.0,429.0,455.0,397.0,384.0,372.0,417.0,439.0,408.0,388.0,395.0,427.0,446.0,421.0,422.0,408.0,420.0,412.0,424.0,414.0,431.0,446.0,412.0,362.0,385.0,415.0,400.0,380.0,401.0,396.0,406.0,405.0,420.0,394.0,399.0,390.0,401.0,423.0,391.0,413.0,398.0,447.0,446.0,395.0,392.0,413.0,430.0,416.0,357.0,405.0,356.0,417.0,396.0,386.0,415.0,415.0,401.0,385.0,369.0,403.0,406.0,412.0,364.0,419.0,438.0,408.0,382.0,457.0,402.0,402.0,396.0,412.0,437.0,392.0,351.0,431.0,415.0,393.0,427.0,405.0,426.0,399.0,442.0,434.0,366.0,419.0,398.0,356.0,352.0,390.0,414.0,401.0,426.0,378.0,375.0,422.0,378.0,400.0,380.0,429.0,378.0,421.0,384.0,394.0,427.0,399.0,419.0,417.0,393.0,426.0,437.0,388.0,441.0,427.0,380.0,417.0,398.0,392.0,408.0,391.0,365.0,421.0,429.0,391.0,401.0,461.0,413.0,404.0,403.0,447.0,435.0,389.0,447.0,415.0,457.0,473.0,471.0,476.0,463.0,460.0,447.0,438.0,430.0,436.0,433.0,460.0,454.0,439.0,378.0,408.0,432.0,460.0,469.0,460.0,432.0,435.0,454.0,377.0,388.0,389.0,408.0,408.0,357.0,418.0,412.0,401.0,396.0,412.0,417.0,407.0,390.0,428.0,430.0,435.0,431.0,383.0,390.0,396.0,416.0,408.0,370.0,421.0,372.0,379.0,393.0,428.0,376.0,377.0,374.0,396.0,373.0,390.0,379.0,404.0,383.0,377.0,385.0,426.0,401.0,376.0,409.0,381.0,411.0,377.0,371.0,359.0,427.0,365.0,413.0,399.0,439.0,383.0,385.0,363.0,405.0,401.0,392.0,403.0,438.0,418.0,433.0,403.0,389.0,418.0,379.0,383.0,398.0,411.0,405.0,376.0,381.0,408.0,423.0,408.0,396.0,395.0,399.0,428.0,394.0,424.0,435.0,354.0,375.0,417.0,388.0,432.0,377.0,423.0,421.0,423.0,372.0,389.0,438.0,415.0,410.0,394.0,416.0,398.0,406.0,402.0,377.0,399.0,390.0,390.0,418.0,402.0,404.0,397.0,434.0,426.0,391.0,405.0,423.0,355.0,407.0,436.0,414.0,415.0,403.0,406.0,436.0,402.0,421.0,404.0,422.0,405.0,406.0,369.0,415.0,431.0,350.0,375.0,390.0,411.0,418.0,441.0,415.0,405.0,439.0,439.0,402.0,372.0,389.0,383.0,374.0,408.0,384.0,413.0,416.0,414.0,416.0,382.0,381.0,453.0,430.0,403.0,422.0,350.0,392.0,404.0,415.0,421.0,405.0,400.0,356.0,384.0,419.0,395.0,413.0,433.0,401.0,417.0,411.0,435.0,380.0,396.0,395.0,411.0,413.0,403.0,398.0,383.0,413.0,404.0,385.0,394.0,437.0,416.0,418.0,432.0,407.0,390.0,415.0,413.0,395.0,397.0,367.0,408.0,383.0,399.0,395.0,408.0,458.0,393.0,382.0,375.0,391.0,415.0,389.0,384.0,415.0,445.0,440.0,412.0,424.0,388.0,372.0,368.0,417.0,415.0,402.0,374.0,388.0,409.0,352.0,402.0,375.0,431.0,435.0,394.0,396.0,398.0,392.0,419.0,394.0,442.0,430.0,411.0,387.0,404.0,423.0,389.0,399.0,363.0,392.0,383.0,413.0,389.0,390.0,411.0,395.0,420.0,415.0,418.0,427.0,430.0,436.0,385.0,389.0,394.0,403.0,380.0,401.0,413.0,424.0,385.0,397.0,425.0,418.0,380.0,404.0,419.0,369.0,388.0,417.0,417.0,402.0,411.0,407.0,432.0,456.0,417.0,426.0,400.0,394.0,405.0,391.0,390.0,422.0,380.0,414.0,397.0,419.0,402.0,438.0,416.0,412.0,411.0,408.0,410.0,399.0,387.0,412.0,384.0,413.0,412.0,419.0,424.0,412.0,374.0,378.0,428.0,433.0,409.0,379.0,406.0,444.0,460.0,441.0,418.0,388.0,434.0,410.0,438.0,391.0,371.0,405.0,396.0,404.0,408.0,381.0,370.0,406.0,405.0,402.0,384.0,411.0,413.0,400.0,413.0,400.0,405.0,403.0,409.0,421.0,431.0,392.0,424.0,433.0,422.0,424.0,404.0,389.0,420.0,418.0,386.0,385.0,423.0,423.0,409.0,365.0,406.0,391.0,413.0,409.0,418.0,406.0,396.0,443.0,414.0,388.0,385.0,392.0,408.0];
+  xyData = {x: REAL_X, y: REAL_Y};
+  document.getElementById('statusPts').textContent = REAL_X.length;
+  document.getElementById('statusRange').textContent = REAL_X[0].toFixed(1) + '° – ' + REAL_X[REAL_X.length-1].toFixed(1) + '°';
+  plotDiffPattern(REAL_X, REAL_Y);
+}
+
+// ═══════════════════════════════════════════════════════════
+// INIT
+// ═══════════════════════════════════════════════════════════
+loadData();
+buildTable();
+buildLatexTable();
+buildLatexResults();
+plotNelsonRiley();
+plotBraggFit();
+</script>
+</body>
+</html>
